@@ -25,6 +25,54 @@ JellyShim fixes all of that in one plugin:
 
 ---
 
+## 📦 Installation
+
+### Add Repository (recommended)
+
+1. In Jellyfin, go to **Dashboard → Plugins → Repositories**
+2. Click **Add** and enter:
+   - **Name:** `JellyShim`
+   - **URL:** `https://raw.githubusercontent.com/alexisometric/jellyshim/main/manifest.json`
+3. Go to **Catalog**, find **JellyShim**, click **Install**
+4. Restart Jellyfin
+
+### Manual Install
+
+1. Download the latest release DLL from [Releases](../../releases)
+2. Copy to your Jellyfin plugins directory:
+
+   | Platform | Path |
+   |---|---|
+   | Linux | `~/.local/share/jellyfin/plugins/JellyShim/` |
+   | Docker | `/config/plugins/JellyShim/` |
+   | Windows | `%APPDATA%\jellyfin\plugins\JellyShim\` |
+
+3. Restart Jellyfin
+
+### Build from Source
+
+```bash
+git clone https://github.com/alexisometric/jellyshim.git
+cd jellyshim
+dotnet build -c Release
+```
+
+Output: `Jellyfin.Plugin.JellyShim/bin/Release/net9.0/Jellyfin.Plugin.JellyShim.dll`
+
+---
+
+## 💬 Contributing
+
+JellyShim is **open source** and built for the community — everyone is welcome to contribute!
+
+- **Found a bug?** [Open an issue](https://github.com/alexisometric/jellyshim/issues/new) — describe what happened and we'll look into it
+- **Have an idea?** [Suggest a feature](https://github.com/alexisometric/jellyshim/issues/new) — all improvement proposals are welcome
+- **Want to code?** Fork the repo, make your changes, and submit a pull request
+
+Whether it's a typo fix, a new optimization, or a performance tweak — every contribution helps make Jellyfin faster for everyone.
+
+---
+
 ## ✨ Feature Overview
 
 | # | Feature | Default | What it does |
@@ -275,42 +323,6 @@ Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli 
 
 ---
 
-## 📦 Installation
-
-### Add Repository (recommended)
-
-1. In Jellyfin, go to **Dashboard → Plugins → Repositories**
-2. Click **Add** and enter:
-   - **Name:** `JellyShim`
-   - **URL:** `https://raw.githubusercontent.com/alexisometric/jellyshim/main/manifest.json`
-3. Go to **Catalog**, find **JellyShim**, click **Install**
-4. Restart Jellyfin
-
-### Manual Install
-
-1. Download the latest release DLL from [Releases](../../releases)
-2. Copy to your Jellyfin plugins directory:
-
-   | Platform | Path |
-   |---|---|
-   | Linux | `~/.local/share/jellyfin/plugins/JellyShim/` |
-   | Docker | `/config/plugins/JellyShim/` |
-   | Windows | `%APPDATA%\jellyfin\plugins\JellyShim\` |
-
-3. Restart Jellyfin
-
-### Build from Source
-
-```bash
-git clone https://github.com/alexisometric/jellyshim.git
-cd jellyshim
-dotnet build -c Release
-```
-
-Output: `Jellyfin.Plugin.JellyShim/bin/Release/net9.0/Jellyfin.Plugin.JellyShim.dll`
-
----
-
 ## ⚙️ Configuration
 
 After installation, go to **Dashboard → Plugins → JellyShim**.
@@ -508,5 +520,6 @@ MIT — see [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  <sub>Built to make every Jellyfin instance faster. ⚡</sub>
+  <sub>Built to make every Jellyfin instance faster. ⚡</sub><br/>
+  <sub><a href="https://github.com/alexisometric/jellyshim/issues">Report a bug</a> · <a href="https://github.com/alexisometric/jellyshim/issues">Request a feature</a> · <a href="https://github.com/alexisometric/jellyshim/pulls">Contribute</a></sub>
 </p>
