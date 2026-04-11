@@ -5,7 +5,9 @@ using Jellyfin.Plugin.JellyShim.Transformation;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +15,8 @@ namespace Jellyfin.Plugin.JellyShim;
 
 /// <summary>
 /// Registers JellyShim services into the Jellyfin DI container.
-/// This runs during ConfigureServices, before Build(), so IStartupFilter is consumed.
+/// This runs during ConfigureServices, before Build(), so registrations are
+/// available when the host starts.
 /// </summary>
 public class PluginServiceRegistrator : IPluginServiceRegistrator
 {
@@ -45,7 +48,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // Orchestrator
         serviceCollection.AddSingleton<AssetProcessor>();
 
-        // Inject middlewares into the pipeline via IStartupFilter
+        // ── Middleware injection ──────────────────────────────────────
+        // Primary: Replace IApplicationBuilderFactory with our own that
+        // pre-registers JellyShim middleware before the pipeline is built.
+        // This runs before the framework's TryAddSingleton in ConfigureWebDefaults,
+        // so our factory takes precedence.
+        serviceCollection.AddSingleton<IApplicationBuilderFactory, JellyShimApplicationBuilderFactory>();
+
+        // Fallback: IStartupFilter (may not be consumed depending on host configuration)
         serviceCollection.AddTransient<IStartupFilter, JellyShimStartupFilter>();
     }
 }

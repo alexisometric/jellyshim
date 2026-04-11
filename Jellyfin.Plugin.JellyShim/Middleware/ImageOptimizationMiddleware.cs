@@ -45,6 +45,7 @@ public partial class ImageOptimizationMiddleware
         _cache = cache;
         _imageProcessor = imageProcessor;
         _logger = logger;
+        _logger.LogInformation("[JellyShim] ImageOptimizationMiddleware instantiated");
     }
 
     /// <summary>

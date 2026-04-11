@@ -51,6 +51,7 @@ public class AssetOptimizationMiddleware
     private readonly RequestDelegate _next;
     private readonly DiskCacheManager _cache;
     private readonly ILogger<AssetOptimizationMiddleware> _logger;
+    private static int _requestCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AssetOptimizationMiddleware"/> class.
@@ -60,6 +61,7 @@ public class AssetOptimizationMiddleware
         _next = next;
         _cache = cache;
         _logger = logger;
+        _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware instantiated");
     }
 
     /// <summary>
@@ -67,6 +69,11 @@ public class AssetOptimizationMiddleware
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
+        if (Interlocked.Increment(ref _requestCount) <= 3)
+        {
+            _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware handling request #{Count}: {Method} {Path}",
+                _requestCount, context.Request.Method, context.Request.Path);
+        }
         var request = context.Request;
         var path = request.Path.Value;
 

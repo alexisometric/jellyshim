@@ -1,27 +1,31 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
 /// <summary>
-/// Injects JellyShim middlewares into the Jellyfin HTTP pipeline
-/// via the <see cref="IStartupFilter"/> mechanism. This runs before Jellyfin's own
-/// static file middleware so we can intercept and serve cached/compressed assets.
+/// Fallback mechanism to inject JellyShim middlewares into the Jellyfin HTTP pipeline
+/// via <see cref="IStartupFilter"/>. The primary mechanism is
+/// <see cref="JellyShimApplicationBuilderFactory"/>; this filter only activates when
+/// the factory was not used.
 /// </summary>
 public class JellyShimStartupFilter : IStartupFilter
 {
+    private readonly ILogger<JellyShimStartupFilter> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="JellyShimStartupFilter"/> class.
+    /// </summary>
+    public JellyShimStartupFilter(ILogger<JellyShimStartupFilter> logger)
+    {
+        _logger = logger;
+    }
+
     /// <inheritdoc />
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
     {
-        return builder =>
-        {
-            // Image optimization first (intercepts /Items/*/Images/* before anything else)
-            builder.UseMiddleware<ImageOptimizationMiddleware>();
-
-            // Asset optimization (serves /web/* from cache, adds headers to plugin paths)
-            builder.UseMiddleware<AssetOptimizationMiddleware>();
-
-            next(builder);
-        };
+        _logger.LogInformation("[JellyShim] IStartupFilter.Configure called — middleware already injected via factory, skipping duplicate registration");
+        return next;
     }
 }
