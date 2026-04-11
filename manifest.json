@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.0.2.0",
+        "changelog": "Fix config page: checkboxes and input fields now show correct default values on first load. Fix config save/load using camelCase keys for Jellyfin 10.11 System.Text.Json API.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.2/jellyshim-v1.0.2.zip",
+        "checksum": "ceff619be8bdf882178c5d66880083ba",
+        "timestamp": "2026-04-11T20:00:00Z"
+      },
+      {
         "version": "1.0.1.0",
         "changelog": "AVIF image encoding support (auto-detected via SkiaSharp at runtime), format negotiation now prefers AVIF > WebP > JPEG in auto mode, default format changed to auto, fixed memory leak in image encoder, fixed Content-Type mismatch on runtimes without AVIF support.",
         "targetAbi": "10.11.0.0",

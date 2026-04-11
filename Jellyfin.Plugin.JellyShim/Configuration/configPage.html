@@ -18,7 +18,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableMinification" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableMinification" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable JS/CSS Minification</span>
                         </label>
                         <div class="fieldDescription">
@@ -28,7 +28,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableCompression" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableCompression" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Brotli/Gzip Pre-compression</span>
                         </label>
                         <div class="fieldDescription">
@@ -41,7 +41,7 @@
                             Brotli Compression Level (0–11)
                         </label>
                         <input id="BrotliCompressionLevel" type="number" is="emby-input"
-                               min="0" max="11" step="1" />
+                               min="0" max="11" step="1" value="11" />
                         <div class="fieldDescription">
                             Higher values give better compression but slower pre-processing. 11 = maximum.
                         </div>
@@ -49,7 +49,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableFileTransformationIntegration" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableFileTransformationIntegration" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable File Transformation Integration</span>
                         </label>
                         <div class="fieldDescription">
@@ -64,7 +64,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableCacheHeaders" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableCacheHeaders" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Optimal Cache Headers</span>
                         </label>
                         <div class="fieldDescription">
@@ -76,7 +76,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="HashedAssetMaxAge">
                             Hashed Asset max-age (seconds)
                         </label>
-                        <input id="HashedAssetMaxAge" type="number" is="emby-input" min="0" />
+                        <input id="HashedAssetMaxAge" type="number" is="emby-input" min="0" value="31536000" />
                         <div class="fieldDescription">
                             Cache duration for hashed/fingerprinted assets (e.g., main.a1b2c3d4.js). Default: 31536000 (1 year, immutable).
                         </div>
@@ -86,7 +86,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="StaticAssetMaxAge">
                             Static Asset max-age (seconds)
                         </label>
-                        <input id="StaticAssetMaxAge" type="number" is="emby-input" min="0" />
+                        <input id="StaticAssetMaxAge" type="number" is="emby-input" min="0" value="2592000" />
                         <div class="fieldDescription">
                             Cache duration for general static assets. Default: 2592000 (30 days).
                         </div>
@@ -96,7 +96,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="PluginAssetMaxAge">
                             Plugin Asset max-age (seconds)
                         </label>
-                        <input id="PluginAssetMaxAge" type="number" is="emby-input" min="0" />
+                        <input id="PluginAssetMaxAge" type="number" is="emby-input" min="0" value="86400" />
                         <div class="fieldDescription">
                             Cache duration for community plugin static assets. Default: 86400 (1 day).
                         </div>
@@ -106,7 +106,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="StaleWhileRevalidate">
                             stale-while-revalidate (seconds)
                         </label>
-                        <input id="StaleWhileRevalidate" type="number" is="emby-input" min="0" />
+                        <input id="StaleWhileRevalidate" type="number" is="emby-input" min="0" value="86400" />
                         <div class="fieldDescription">
                             Serve stale content while revalidating in background. Default: 86400 (1 day).
                         </div>
@@ -119,7 +119,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnablePreloadInjection" type="checkbox" is="emby-checkbox" />
+                            <input id="EnablePreloadInjection" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Modulepreload Injection</span>
                         </label>
                         <div class="fieldDescription">
@@ -129,7 +129,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableScriptDefer" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableScriptDefer" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Script Defer</span>
                         </label>
                         <div class="fieldDescription">
@@ -139,7 +139,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="StripSriOnModification" type="checkbox" is="emby-checkbox" />
+                            <input id="StripSriOnModification" type="checkbox" is="emby-checkbox" checked />
                             <span>Strip SRI Integrity Attributes</span>
                         </label>
                         <div class="fieldDescription">
@@ -149,7 +149,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnablePreconnectHints" type="checkbox" is="emby-checkbox" />
+                            <input id="EnablePreconnectHints" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Preconnect Hints</span>
                         </label>
                         <div class="fieldDescription">
@@ -161,7 +161,10 @@
                         <label class="inputLabel inputLabelUnfocused" for="PreconnectOrigins">
                             Preconnect Origins (one per line)
                         </label>
-                        <textarea id="PreconnectOrigins" is="emby-textarea" rows="4" style="width:100%"></textarea>
+                        <textarea id="PreconnectOrigins" is="emby-textarea" rows="4" style="width:100%">https://fonts.googleapis.com
+https://fonts.gstatic.com
+https://cdn.jsdelivr.net
+https://www.gstatic.com</textarea>
                         <div class="fieldDescription">
                             External origins for preconnect hints (e.g., https://fonts.googleapis.com).
                         </div>
@@ -174,7 +177,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableFontPreloadHeaders" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableFontPreloadHeaders" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Font Preload Link Headers</span>
                         </label>
                         <div class="fieldDescription">
@@ -184,7 +187,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableJsModulepreloadHeaders" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableJsModulepreloadHeaders" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable JS Modulepreload Link Headers</span>
                         </label>
                         <div class="fieldDescription">
@@ -199,7 +202,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableCrossOriginResourcePolicy" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableCrossOriginResourcePolicy" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Cross-Origin-Resource-Policy Header</span>
                         </label>
                         <div class="fieldDescription">
@@ -211,7 +214,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="CrossOriginResourcePolicyValue">
                             CORP Value
                         </label>
-                        <input id="CrossOriginResourcePolicyValue" type="text" is="emby-input" />
+                        <input id="CrossOriginResourcePolicyValue" type="text" is="emby-input" value="cross-origin" />
                         <div class="fieldDescription">
                             cross-origin, same-site, or same-origin. Default: cross-origin.
                         </div>
@@ -236,21 +239,21 @@
                         <label class="inputLabel inputLabelUnfocused" for="XContentTypeOptions">
                             X-Content-Type-Options
                         </label>
-                        <input id="XContentTypeOptions" type="text" is="emby-input" />
+                        <input id="XContentTypeOptions" type="text" is="emby-input" value="nosniff" />
                     </div>
 
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ReferrerPolicy">
                             Referrer-Policy
                         </label>
-                        <input id="ReferrerPolicy" type="text" is="emby-input" />
+                        <input id="ReferrerPolicy" type="text" is="emby-input" value="strict-origin-when-cross-origin" />
                     </div>
 
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="PermissionsPolicy">
                             Permissions-Policy
                         </label>
-                        <input id="PermissionsPolicy" type="text" is="emby-input" />
+                        <input id="PermissionsPolicy" type="text" is="emby-input" value="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()" />
                     </div>
 
                     <!-- ═══ Image Optimization ═══ -->
@@ -279,7 +282,7 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableImageCache" type="checkbox" is="emby-checkbox" />
+                            <input id="EnableImageCache" type="checkbox" is="emby-checkbox" checked />
                             <span>Enable Image Disk Cache</span>
                         </label>
                         <div class="fieldDescription">
@@ -291,7 +294,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="ImageOutputFormat">
                             Output Format
                         </label>
-                        <input id="ImageOutputFormat" type="text" is="emby-input" />
+                        <input id="ImageOutputFormat" type="text" is="emby-input" value="auto" />
                         <div class="fieldDescription">
                             Preferred output format: avif, webp, jpeg, or auto (auto negotiates AVIF → WebP → JPEG based on browser support).
                         </div>
@@ -301,7 +304,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="ImageCacheMaxAge">
                             Image Cache max-age (seconds)
                         </label>
-                        <input id="ImageCacheMaxAge" type="number" is="emby-input" min="0" />
+                        <input id="ImageCacheMaxAge" type="number" is="emby-input" min="0" value="2592000" />
                         <div class="fieldDescription">
                             Cache-Control max-age for image responses. Default: 2592000 (30 days).
                         </div>
@@ -311,7 +314,7 @@
                         <label class="inputLabel inputLabelUnfocused" for="ImageStaleWhileRevalidate">
                             Image stale-while-revalidate (seconds)
                         </label>
-                        <input id="ImageStaleWhileRevalidate" type="number" is="emby-input" min="0" />
+                        <input id="ImageStaleWhileRevalidate" type="number" is="emby-input" min="0" value="604800" />
                         <div class="fieldDescription">
                             Serve stale image while revalidating in background. Default: 604800 (7 days).
                         </div>
@@ -341,104 +344,104 @@
                                         <strong>Primary</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Poster, cover art, album art</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="PrimaryMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="PrimaryQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="PrimaryMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="600" /></td>
+                                    <td style="padding: 4px 6px;"><input id="PrimaryQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Backdrop</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Background art, detail view</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="BackdropMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="BackdropQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BackdropMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1920" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BackdropQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Art</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Fan art, clear art</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="ArtMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="ArtQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ArtMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1280" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ArtQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Banner</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Wide banner images</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="BannerMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="BannerQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BannerMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1000" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BannerQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Logo</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Transparent logo overlays</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="LogoMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="LogoQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="LogoMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="400" /></td>
+                                    <td style="padding: 4px 6px;"><input id="LogoQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="90" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Thumb</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Thumbnail previews</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="ThumbMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="ThumbQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ThumbMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="480" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ThumbQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Screenshot</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">TV episode screenshots</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="ScreenshotMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="ScreenshotQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ScreenshotMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1280" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ScreenshotQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Chapter</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Chapter thumbnails in player</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="ChapterMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="ChapterQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ChapterMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="400" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ChapterQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="70" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Profile</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">User profile pictures</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="ProfileMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="ProfileQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ProfileMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="200" /></td>
+                                    <td style="padding: 4px 6px;"><input id="ProfileQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="85" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Disc</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">CD/DVD/Blu-ray disc art</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="DiscMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="DiscQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="DiscMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                    <td style="padding: 4px 6px;"><input id="DiscQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Box</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Box art (front)</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="BoxMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="BoxQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BoxMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BoxQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
                                     <td style="padding: 6px 10px;">
                                         <strong>BoxRear</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Box art (rear)</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="BoxRearMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="BoxRearQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BoxRearMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                    <td style="padding: 4px 6px;"><input id="BoxRearQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">
                                     <td style="padding: 6px 10px;">
                                         <strong>Default</strong>
                                         <div class="fieldDescription" style="margin:2px 0 0 0; font-size:0.85em;">Fallback for any other type</div>
                                     </td>
-                                    <td style="padding: 4px 6px;"><input id="DefaultImageMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" /></td>
-                                    <td style="padding: 4px 6px;"><input id="DefaultImageQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" /></td>
+                                    <td style="padding: 4px 6px;"><input id="DefaultImageMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                    <td style="padding: 4px 6px;"><input id="DefaultImageQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -453,7 +456,12 @@
                         <label class="inputLabel inputLabelUnfocused" for="PluginAssetPaths">
                             Known Plugin Paths (one per line)
                         </label>
-                        <textarea id="PluginAssetPaths" is="emby-textarea" rows="6" style="width:100%"></textarea>
+                        <textarea id="PluginAssetPaths" is="emby-textarea" rows="6" style="width:100%">/JellyTweaks/
+/HomeScreen/
+/MediaBarEnhanced/
+/Plugins/Announcements/
+/JellyfinEnhanced/
+/JavaScriptInjector/</textarea>
                         <div class="fieldDescription">
                             URL path prefixes for community plugin static assets (e.g., /JellyTweaks/).
                             These paths get plugin-level caching and compression headers.
