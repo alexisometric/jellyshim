@@ -13,7 +13,7 @@
         "changelog": "Fix config page: checkboxes and input fields now show correct default values on first load. Fix config save/load using camelCase keys for Jellyfin 10.11 System.Text.Json API.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.2/jellyshim-v1.0.2.zip",
-        "checksum": "ceff619be8bdf882178c5d66880083ba",
+        "checksum": "2150a3a14e52bd7fe907e2c527f74129",
         "timestamp": "2026-04-11T20:00:00Z"
       },
       {
