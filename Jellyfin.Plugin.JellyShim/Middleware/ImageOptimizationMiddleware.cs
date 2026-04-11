@@ -244,21 +244,35 @@ public partial class ImageOptimizationMiddleware
 
     /// <summary>
     /// Selects output format based on Accept header and config preference.
-    /// Supports WebP and JPEG output.
+    /// Supports AVIF, WebP, and JPEG output with automatic negotiation.
+    /// AVIF is only returned if the runtime SkiaSharp build supports it.
     /// </summary>
-    private static string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config)
+    private string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config)
     {
         var accept = request.Headers.Accept.ToString();
+        var preferred = config.ImageOutputFormat.ToLowerInvariant();
 
-        if (config.ImageOutputFormat.Equals("webp", StringComparison.OrdinalIgnoreCase) &&
-            accept.Contains("image/webp", StringComparison.OrdinalIgnoreCase))
+        if (preferred == "avif" &&
+            accept.Contains("image/avif", StringComparison.OrdinalIgnoreCase) &&
+            _imageProcessor.IsAvifSupported)
+        {
+            return "avif";
+        }
+
+        if (preferred == "webp" && accept.Contains("image/webp", StringComparison.OrdinalIgnoreCase))
         {
             return "webp";
         }
 
-        // Auto: prefer webp if client supports it
-        if (config.ImageOutputFormat.Equals("auto", StringComparison.OrdinalIgnoreCase))
+        // Auto: prefer AVIF > WebP > JPEG based on browser support
+        if (preferred == "auto")
         {
+            if (accept.Contains("image/avif", StringComparison.OrdinalIgnoreCase) &&
+                _imageProcessor.IsAvifSupported)
+            {
+                return "avif";
+            }
+
             if (accept.Contains("image/webp", StringComparison.OrdinalIgnoreCase))
             {
                 return "webp";

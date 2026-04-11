@@ -17,7 +17,7 @@ Out of the box, Jellyfin serves uncompressed web assets, full-resolution images,
 JellyShim fixes all of that in one plugin:
 
 - **60–90 % smaller** JS/CSS/HTML via minification + Brotli pre-compression
-- **50–80 % smaller** images via native resizing + WebP conversion
+- **50–80 % smaller** images via native resizing + AVIF/WebP conversion
 - **Instant repeat visits** via intelligent caching with ETag + 304 support
 - **Faster first paint** via modulepreload, script defer, preconnect hints
 
@@ -79,7 +79,7 @@ Whether it's a typo fix, a new optimization, or a performance tweak — every co
 |---|---|:---:|---|
 | 1 | [JS/CSS Minification](#1--jscss-minification) | ✅ On | Strips whitespace, comments, shortens names |
 | 2 | [Brotli/Gzip Pre-compression](#2--brotligzip-pre-compression) | ✅ On | Pre-compresses all text assets to disk cache |
-| 3 | [Native Image Optimization](#3--native-image-optimization) | ❌ Off | Resize + re-encode every Jellyfin image in-process |
+| 3 | [Native Image Optimization](#3--native-image-optimization) | ❌ Off | Resize + re-encode every Jellyfin image in-process (AVIF/WebP/JPEG) |
 | 4 | [Smart Cache Headers](#4--smart-cache-headers) | ✅ On | Optimal Cache-Control per asset type |
 | 5 | [HTML Optimization](#5--html-optimization) | ✅ On | Modulepreload, defer, preconnect, DNS-prefetch |
 | 6 | [Link Preload Headers](#6--link-preload-headers) | ✅ On | HTTP Link headers for fonts and JS |
@@ -122,12 +122,12 @@ Original asset: 450 KB
 
 ## 3 · Native Image Optimization
 
-**Built-in image processing powered by [ImageSharp](https://sixlabors.com/products/imagesharp/) — no external service, no Docker sidecar, nothing to install.**
+**Built-in image processing powered by [ImageSharp](https://sixlabors.com/products/imagesharp/) + [SkiaSharp](https://github.com/mono/SkiaSharp) — no external service, no Docker sidecar, nothing to install.**
 
 JellyShim intercepts all Jellyfin image requests and processes them on the fly:
 
 1. **Resize** — Downscale to a per-type max width (preserves aspect ratio, never upscales)
-2. **Re-encode** — Convert to WebP or JPEG with per-type quality
+2. **Re-encode** — Convert to AVIF, WebP, or JPEG with per-type quality
 3. **Cache** — Processed images saved to disk; subsequent requests served instantly
 4. **304 support** — ETag-based conditional requests avoid re-sending unchanged images
 
@@ -135,9 +135,10 @@ JellyShim intercepts all Jellyfin image requests and processes them on the fly:
 
 | Config value | Behavior |
 |---|---|
+| `avif` | Serve AVIF if browser supports it, JPEG fallback |
 | `webp` | Serve WebP if browser supports it, JPEG fallback |
 | `jpeg` | Always serve JPEG |
-| `auto` | Prefer WebP when `Accept: image/webp` is present |
+| `auto` | Prefer AVIF → WebP → JPEG based on `Accept` header |
 
 ### Per-Type Independent Settings
 
@@ -159,7 +160,7 @@ Every Jellyfin image type has its own **max width** and **quality**, giving you 
 | **BoxRear** | Box art (rear) | 300 px | 80 |
 | **Default** | Fallback for any unrecognized type | 300 px | 80 |
 
-> **Config:** `EnableImageOptimization` (default `false`) · `EnableImageCache` (default `true`) · `ImageOutputFormat` (default `webp`) · per-type `*MaxWidth` and `*Quality`
+> **Config:** `EnableImageOptimization` (default `false`) · `EnableImageCache` (default `true`) · `ImageOutputFormat` (default `auto`) · per-type `*MaxWidth` and `*Quality`
 
 ---
 
@@ -413,7 +414,7 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | Property | Type | Default |
 |---|---|---|
 | `EnableImageOptimization` | bool | `false` |
-| `ImageOutputFormat` | string | `webp` |
+| `ImageOutputFormat` | string | `auto` |
 | `EnableImageCache` | bool | `true` |
 
 **Per-type settings** — Each with `*MaxWidth` (px) and `*Quality` (1–100):
@@ -464,6 +465,7 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 | [NUglify](https://github.com/trullock/NUglify) | 1.21.17 | JS/CSS minification |
 | [AngleSharp](https://anglesharp.github.io/) | 1.3.0 | HTML DOM parsing & manipulation |
 | [SixLabors.ImageSharp](https://sixlabors.com/products/imagesharp/) | 3.1.12 | Native image resizing & encoding |
+| [SkiaSharp](https://github.com/mono/SkiaSharp) | 2.88.9 | AVIF encoding (provided at runtime by Jellyfin) |
 
 ---
 

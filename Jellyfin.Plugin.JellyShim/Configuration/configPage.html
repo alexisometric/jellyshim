@@ -261,8 +261,8 @@
                     <div style="background: #2a2a2a; border-left: 4px solid #4caf50; padding: 12px 16px; margin-bottom: 1.5em; border-radius: 4px;">
                         <strong style="color: #4caf50;">&#10003; Built-in image processing</strong>
                         <p style="margin: 6px 0 0 0; color: #ccc;">
-                            JellyShim processes images natively using ImageSharp — <strong>no external service required</strong>.<br/>
-                            Images are resized, re-encoded (WebP/JPEG), and cached to disk automatically.
+                            JellyShim processes images natively using ImageSharp + SkiaSharp — <strong>no external service required</strong>.<br/>
+                            Images are resized, re-encoded (AVIF/WebP/JPEG), and cached to disk automatically.
                             Each Jellyfin image type has independent width and quality settings.
                         </p>
                     </div>
@@ -293,7 +293,7 @@
                         </label>
                         <input id="ImageOutputFormat" type="text" is="emby-input" />
                         <div class="fieldDescription">
-                            Preferred output format: webp, jpeg, or auto (auto negotiates WebP when supported by browser).
+                            Preferred output format: avif, webp, jpeg, or auto (auto negotiates AVIF → WebP → JPEG based on browser support).
                         </div>
                     </div>
 

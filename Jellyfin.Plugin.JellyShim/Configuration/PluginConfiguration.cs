@@ -97,8 +97,8 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets a value indicating whether native image optimization is enabled.</summary>
     public bool EnableImageOptimization { get; set; } = false;
 
-    /// <summary>Gets or sets the preferred output format (webp, jpeg, or auto).</summary>
-    public string ImageOutputFormat { get; set; } = "webp";
+    /// <summary>Gets or sets the preferred output format (avif, webp, jpeg, or auto).</summary>
+    public string ImageOutputFormat { get; set; } = "auto";
 
     /// <summary>Gets or sets a value indicating whether processed images are cached to disk.</summary>
     public bool EnableImageCache { get; set; } = true;
