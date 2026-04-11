@@ -474,6 +474,12 @@
         var JellyShimConfig = {
             pluginUniqueId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
 
+            // Convert PascalCase element ID to camelCase config key
+            // Jellyfin 10.11+ API returns camelCase JSON (System.Text.Json)
+            toKey: function (id) {
+                return id.charAt(0).toLowerCase() + id.slice(1);
+            },
+
             // All config field IDs and their types
             checkboxes: [
                 'EnableMinification', 'EnableCompression', 'EnableCacheHeaders',
@@ -515,17 +521,18 @@
             .addEventListener('pageshow', function () {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                    var k = JellyShimConfig.toKey;
                     JellyShimConfig.checkboxes.forEach(function (id) {
-                        document.querySelector('#' + id).checked = config[id];
+                        document.querySelector('#' + id).checked = config[k(id)];
                     });
                     JellyShimConfig.numbers.forEach(function (id) {
-                        document.querySelector('#' + id).value = config[id];
+                        document.querySelector('#' + id).value = config[k(id)];
                     });
                     JellyShimConfig.texts.forEach(function (id) {
-                        document.querySelector('#' + id).value = config[id] || '';
+                        document.querySelector('#' + id).value = config[k(id)] || '';
                     });
                     JellyShimConfig.textareas.forEach(function (id) {
-                        document.querySelector('#' + id).value = (config[id] || '').replace(/\\n/g, '\n');
+                        document.querySelector('#' + id).value = (config[k(id)] || '').replace(/\\n/g, '\n');
                     });
                     Dashboard.hideLoadingMsg();
                 });
@@ -535,18 +542,19 @@
             .addEventListener('submit', function (e) {
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                    var k = JellyShimConfig.toKey;
                     JellyShimConfig.checkboxes.forEach(function (id) {
-                        config[id] = document.querySelector('#' + id).checked;
+                        config[k(id)] = document.querySelector('#' + id).checked;
                     });
                     JellyShimConfig.numbers.forEach(function (id) {
                         var v = parseInt(document.querySelector('#' + id).value, 10);
-                        config[id] = isNaN(v) ? 0 : v;
+                        config[k(id)] = isNaN(v) ? 0 : v;
                     });
                     JellyShimConfig.texts.forEach(function (id) {
-                        config[id] = document.querySelector('#' + id).value;
+                        config[k(id)] = document.querySelector('#' + id).value;
                     });
                     JellyShimConfig.textareas.forEach(function (id) {
-                        config[id] = document.querySelector('#' + id).value;
+                        config[k(id)] = document.querySelector('#' + id).value;
                     });
                     ApiClient.updatePluginConfiguration(JellyShimConfig.pluginUniqueId, config).then(function () {
                         Dashboard.processPluginConfigurationUpdateResult();
