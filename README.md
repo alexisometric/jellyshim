@@ -1,21 +1,11 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jellyfin/jellyfin-ux/master/branding/SVG/icon-transparent.svg" alt="Jellyfin" width="100" />
-</p>
-
-<h1 align="center">⚡ JellyShim</h1>
-
-<p align="center">
-  <em>The performance plugin that makes Jellyfin fly.</em>
+  <img src="images/banner.png" alt="JellyShim — Performance Patch for Jellyfin" width="800" />
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Jellyfin-10.11+-00a4dc?style=for-the-badge&logo=jellyfin&logoColor=white" alt="Jellyfin 10.11+" />
   <img src="https://img.shields.io/badge/.NET-9.0-512bd4?style=for-the-badge&logo=dotnet&logoColor=white" alt=".NET 9.0" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License" />
-</p>
-
-<p align="center">
-  <strong>Smaller assets · Compressed images · Smarter caching · Zero external dependency</strong>
 </p>
 
 ---

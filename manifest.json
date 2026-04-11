@@ -6,6 +6,7 @@
     "description": "JellyShim optimizes your Jellyfin web client: JS/CSS minification, Brotli/Gzip pre-compression, native image resizing (WebP/JPEG) with per-type settings, intelligent cache headers with ETag/304, HTML optimization (modulepreload, defer, preconnect), Link preload headers, CORS/CORP headers, and optional security headers. Zero external dependency — install, restart, done.",
     "owner": "alexisometric",
     "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
         "version": "1.0.0.0",
