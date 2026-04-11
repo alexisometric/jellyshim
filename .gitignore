@@ -34,3 +34,7 @@ desktop.ini
 ## Local tooling
 .github/copilot-instructions.md
 .github/hooks/
+
+## Build artifacts
+publish/
+*.zip
