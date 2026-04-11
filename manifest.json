@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "JellyShim",
+    "overview": "Performance optimization plugin — smaller assets, compressed images, smarter caching.",
+    "description": "JellyShim optimizes your Jellyfin web client: JS/CSS minification, Brotli/Gzip pre-compression, native image resizing (WebP/JPEG) with per-type settings, intelligent cache headers with ETag/304, HTML optimization (modulepreload, defer, preconnect), Link preload headers, CORS/CORP headers, and optional security headers. Zero external dependency — install, restart, done.",
+    "owner": "alexisometric",
+    "category": "General",
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release: JS/CSS minification, Brotli/Gzip pre-compression, native ImageSharp image optimization with 13 per-type settings, smart cache headers, HTML optimization, Link preload headers, CORS/CORP, optional security headers, plugin asset support, File Transformation bridge.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.0/jellyshim-v1.0.0.zip",
+        "checksum": "a23af073276ed1cb45b36382c153610e",
+        "timestamp": "2026-04-11T13:27:19Z"
+      }
+    ]
+  }
+]

@@ -1,0 +1,719 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Jellyfin.Plugin.JellyShim</name>
+    </assembly>
+    <members>
+        <member name="T:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager">
+            <summary>
+            Manages a disk cache for pre-optimized and pre-compressed assets.
+            Cache lives under {CachePath}/jellyshim/ and never modifies original files.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.#ctor(System.String,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager"/> class.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.CacheRoot">
+            <summary>
+            Gets the root cache directory.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.GetCachedFilePath(System.String,System.String)">
+            <summary>
+            Gets the full path to a cached file for a given relative path and encoding.
+            Path traversal is prevented by rejecting segments containing "..".
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.IsCacheValid(System.String,System.String,System.DateTime)">
+            <summary>
+            Checks whether a cached version exists and is still valid (source hasn't been modified since cache was built).
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.TryGetCachedFile(System.String,System.String,System.String@)">
+            <summary>
+            Tries to get a cached file's full path. Returns false if not cached or stale.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.Store(System.String,System.String,System.Byte[])">
+            <summary>
+            Stores content in the cache.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.StoreAsync(System.String,System.String,System.Byte[],System.Threading.CancellationToken)">
+            <summary>
+            Stores content in the cache asynchronously.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.ComputeETag(System.String)">
+            <summary>
+            Computes an ETag for a cached file based on its content hash.
+            Results are cached in memory and invalidated when the file's last-write time changes.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.InvalidateAll">
+            <summary>
+            Invalidates the entire cache.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager.GetCacheStats">
+            <summary>
+            Gets total cached files count and size.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration">
+            <summary>
+            Plugin configuration for JellyShim.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableMinification">
+            <summary>Gets or sets a value indicating whether JS/CSS minification is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableCompression">
+            <summary>Gets or sets a value indicating whether Brotli/Gzip pre-compression is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BrotliCompressionLevel">
+            <summary>Gets or sets the Brotli compression level (0-11). 11 is max compression.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableFileTransformationIntegration">
+            <summary>Gets or sets a value indicating whether File Transformation plugin integration is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableCacheHeaders">
+            <summary>Gets or sets a value indicating whether optimal cache headers are added.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.HashedAssetMaxAge">
+            <summary>Gets or sets max-age for hashed assets (seconds). Default: 1 year.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.StaticAssetMaxAge">
+            <summary>Gets or sets max-age for general static assets (seconds). Default: 30 days.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PluginAssetMaxAge">
+            <summary>Gets or sets max-age for plugin assets (seconds). Default: 1 day.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.StaleWhileRevalidate">
+            <summary>Gets or sets stale-while-revalidate for static assets (seconds). Default: 1 day.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ImageCacheMaxAge">
+            <summary>Gets or sets max-age for image responses (seconds). Default: 30 days.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ImageStaleWhileRevalidate">
+            <summary>Gets or sets stale-while-revalidate for images (seconds). Default: 7 days.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnablePreloadInjection">
+            <summary>Gets or sets a value indicating whether modulepreload link injection is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableScriptDefer">
+            <summary>Gets or sets a value indicating whether script defer optimization is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.StripSriOnModification">
+            <summary>Gets or sets a value indicating whether SRI integrity attributes should be stripped.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnablePreconnectHints">
+            <summary>Gets or sets a value indicating whether preconnect hints are injected into HTML.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PreconnectOrigins">
+            <summary>Gets or sets the list of origins for preconnect hints (one per line).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableFontPreloadHeaders">
+            <summary>Gets or sets a value indicating whether Link headers for fonts are added (preload).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableJsModulepreloadHeaders">
+            <summary>Gets or sets a value indicating whether Link headers for JS are added (modulepreload).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableCrossOriginResourcePolicy">
+            <summary>Gets or sets a value indicating whether Cross-Origin-Resource-Policy header is added.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.CrossOriginResourcePolicyValue">
+            <summary>Gets or sets the CORP value. Default: cross-origin (for iframe Jellyseerr compat).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableSecurityHeaders">
+            <summary>Gets or sets a value indicating whether security headers are enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.XContentTypeOptions">
+            <summary>Gets or sets X-Content-Type-Options value.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ReferrerPolicy">
+            <summary>Gets or sets Referrer-Policy value.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PermissionsPolicy">
+            <summary>Gets or sets Permissions-Policy value.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableImageOptimization">
+            <summary>Gets or sets a value indicating whether native image optimization is enabled.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ImageOutputFormat">
+            <summary>Gets or sets the preferred output format (webp, jpeg, or auto).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.EnableImageCache">
+            <summary>Gets or sets a value indicating whether processed images are cached to disk.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PrimaryMaxWidth">
+            <summary>Gets or sets the max width for Primary images (poster, cover art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PrimaryQuality">
+            <summary>Gets or sets the quality for Primary images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BackdropMaxWidth">
+            <summary>Gets or sets the max width for Backdrop images (background art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BackdropQuality">
+            <summary>Gets or sets the quality for Backdrop images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ArtMaxWidth">
+            <summary>Gets or sets the max width for Art images (fan art, clear art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ArtQuality">
+            <summary>Gets or sets the quality for Art images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BannerMaxWidth">
+            <summary>Gets or sets the max width for Banner images.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BannerQuality">
+            <summary>Gets or sets the quality for Banner images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.LogoMaxWidth">
+            <summary>Gets or sets the max width for Logo images (transparent).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.LogoQuality">
+            <summary>Gets or sets the quality for Logo images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ThumbMaxWidth">
+            <summary>Gets or sets the max width for Thumb images (thumbnails).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ThumbQuality">
+            <summary>Gets or sets the quality for Thumb images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ScreenshotMaxWidth">
+            <summary>Gets or sets the max width for Screenshot images.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ScreenshotQuality">
+            <summary>Gets or sets the quality for Screenshot images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ChapterMaxWidth">
+            <summary>Gets or sets the max width for Chapter images.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ChapterQuality">
+            <summary>Gets or sets the quality for Chapter images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ProfileMaxWidth">
+            <summary>Gets or sets the max width for Profile images (user pictures).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.ProfileQuality">
+            <summary>Gets or sets the quality for Profile images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.DiscMaxWidth">
+            <summary>Gets or sets the max width for Disc images (CD/DVD art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.DiscQuality">
+            <summary>Gets or sets the quality for Disc images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BoxMaxWidth">
+            <summary>Gets or sets the max width for Box images (box art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BoxQuality">
+            <summary>Gets or sets the quality for Box images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BoxRearMaxWidth">
+            <summary>Gets or sets the max width for BoxRear images (rear box art).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.BoxRearQuality">
+            <summary>Gets or sets the quality for BoxRear images (1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.DefaultImageMaxWidth">
+            <summary>Gets or sets the max width for unrecognized image types (fallback).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.DefaultImageQuality">
+            <summary>Gets or sets the quality for unrecognized image types (fallback, 1-100).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration.PluginAssetPaths">
+            <summary>
+            Gets or sets known plugin static asset path prefixes (one per line).
+            These paths get plugin-level caching + compression.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware">
+            <summary>
+            ASP.NET Core middleware that intercepts requests to /web/* and plugin static paths,
+            serving pre-compressed cached assets with Cache-Control, ETag, Vary, CORP,
+            Link preload, and security headers.
+            </summary>
+        </member>
+        <member name="F:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.ApiPrefixes">
+            <summary>
+            API-like path prefixes that should NEVER be cached.
+            Jellyfin doesn't route everything under /api/ — most endpoints are at root level.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.#ctor(Microsoft.AspNetCore.Http.RequestDelegate,Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.InvokeAsync(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Processes the request.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.IsPluginAssetPath(System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Checks if a path matches one of the configured plugin static asset prefixes.
+            Parsed paths are cached to avoid re-splitting on every request.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.IsApiPath(System.String)">
+            <summary>
+            Checks if a path is an API/dynamic endpoint that should NEVER be cached.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.SetResponseHeaders(Microsoft.AspNetCore.Http.HttpContext,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration,System.Action)">
+            <summary>
+            Sets CORP, security headers, and a custom action via OnStarting callback
+            for responses that pass through to the next middleware.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.SetCacheHeaders(Microsoft.AspNetCore.Http.HttpResponse,System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Determines appropriate cache policy based on the file path.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.SetPassthroughCacheHeaders(Microsoft.AspNetCore.Http.HttpResponse,System.String,System.Boolean,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Sets cache headers for pass-through (non-cached) responses.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.AddSecurityHeaders(Microsoft.AspNetCore.Http.HttpResponse,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Adds security headers if enabled in config.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.AssetOptimizationMiddleware.IsHashedAsset(System.String)">
+            <summary>
+            Heuristic: files with a content hash segment (8+ hex chars) in their name.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware">
+            <summary>
+            Middleware that intercepts Jellyfin image requests and processes them natively
+            using ImageSharp for on-the-fly resizing, quality reduction, and format conversion.
+            No external service required — all processing happens in-process.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.ImagePathRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>^/(Items|Users)/[^/]+/Images/([^/?]+)</code><br/>
+            Options:<br/>
+            <code>RegexOptions.IgnoreCase | RegexOptions.Compiled</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match '/'.<br/>
+            ○ 1st capture group.<br/>
+                ○ Match with 2 alternative expressions.<br/>
+                    ○ Match a sequence of expressions.<br/>
+                        ○ Match an empty string.<br/>
+                        ○ Match a character in the set [Tt].<br/>
+                        ○ Match a character in the set [Ee].<br/>
+                        ○ Match a character in the set [Mm].<br/>
+                        ○ Match a character in the set [Ss].<br/>
+                    ○ Match a sequence of expressions.<br/>
+                        ○ Match an empty string.<br/>
+                        ○ Match a character in the set [Ss].<br/>
+                        ○ Match a character in the set [Ee].<br/>
+                        ○ Match a character in the set [Rr].<br/>
+                        ○ Match a character in the set [Ss].<br/>
+            ○ Match '/'.<br/>
+            ○ Match a character other than '/' atomically at least once.<br/>
+            ○ Match '/'.<br/>
+            ○ Match a character in the set [Ii].<br/>
+            ○ Match a character in the set [Mm].<br/>
+            ○ Match a character in the set [Aa].<br/>
+            ○ Match a character in the set [Gg].<br/>
+            ○ Match a character in the set [Ee].<br/>
+            ○ Match a character in the set [Ss].<br/>
+            ○ Match '/'.<br/>
+            ○ 2nd capture group.<br/>
+                ○ Match a character in the set [^/?] atomically at least once.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="F:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.MaxCaptureBytes">
+            <summary>Maximum original image size we'll attempt to process (50 MB).</summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.#ctor(Microsoft.AspNetCore.Http.RequestDelegate,Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager,Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.InvokeAsync(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Processes the request.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.ServeCachedImage(Microsoft.AspNetCore.Http.HttpContext,System.String,System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Serves a cached processed image file with ETag/304 support.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.SetImageHeaders(Microsoft.AspNetCore.Http.HttpResponse,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Sets cache and CORP headers for image responses.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.GetImageSettings(System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Retrieves per-type MaxWidth and Quality from configuration.
+            Each Jellyfin image type has its own independent settings.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.NegotiateFormat(Microsoft.AspNetCore.Http.HttpRequest,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Selects output format based on Accept header and config preference.
+            Supports WebP and JPEG output.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.ImageOptimizationMiddleware.BuildCacheKey(System.String,System.String,System.Int32,System.Int32,System.String)">
+            <summary>
+            Builds a deterministic cache key from request path and processing parameters.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Middleware.JellyShimStartupFilter">
+            <summary>
+            Injects JellyShim middlewares into the Jellyfin HTTP pipeline
+            via the <see cref="T:Microsoft.AspNetCore.Hosting.IStartupFilter"/> mechanism. This runs before Jellyfin's own
+            static file middleware so we can intercept and serve cached/compressed assets.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Middleware.JellyShimStartupFilter.Configure(System.Action{Microsoft.AspNetCore.Builder.IApplicationBuilder})">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor">
+            <summary>
+            Orchestrates the full asset optimization pipeline:
+            scan WebPath → minify (JS/CSS) → transform (HTML) → pre-compress (Brotli/Gzip) → store in disk cache.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.#ctor(Jellyfin.Plugin.JellyShim.Cache.DiskCacheManager,Jellyfin.Plugin.JellyShim.Optimization.PreCompressor,Jellyfin.Plugin.JellyShim.Transformation.JsTransformer,Jellyfin.Plugin.JellyShim.Transformation.CssTransformer,Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessAllAsync(System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration,System.Threading.CancellationToken)">
+            <summary>
+            Processes all compressible assets in the given web path.
+            </summary>
+            <returns>Processing statistics.</returns>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats">
+            <summary>
+            Statistics from a processing run.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.Processed">
+            <summary>Gets or sets the number of files processed.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.Skipped">
+            <summary>Gets or sets the number of files skipped (cache valid).</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.Errors">
+            <summary>Gets or sets the number of files that failed.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.TotalOriginalBytes">
+            <summary>Gets or sets the total original bytes before optimization.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.TotalBrotliBytes">
+            <summary>Gets or sets the total Brotli compressed bytes.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.TotalGzipBytes">
+            <summary>Gets or sets the total Gzip compressed bytes.</summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor.ProcessingStats.ElapsedMs">
+            <summary>Gets or sets the elapsed time in milliseconds.</summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor">
+            <summary>
+            Native image processor using ImageSharp — resizes, re-encodes, and compresses images
+            without any external service dependency.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor.Process(System.Byte[],System.Int32,System.Int32,System.String)">
+            <summary>
+            Processes an image: resize to max width (preserving aspect ratio) and re-encode.
+            Only downscales — images already smaller than maxWidth are not upscaled.
+            </summary>
+            <param name="input">Raw image bytes from Jellyfin.</param>
+            <param name="maxWidth">Maximum output width in pixels. 0 = no resize.</param>
+            <param name="quality">Output quality (1-100).</param>
+            <param name="format">Output format: "webp" or "jpeg".</param>
+            <returns>Processed image bytes.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.ImageProcessor.GetContentType(System.String)">
+            <summary>
+            Returns the MIME content type for the given format.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor">
+            <summary>
+            Pre-compresses content using Brotli and Gzip at build time.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Optimization.PreCompressor})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.CompressBrotli(System.Byte[],System.Int32)">
+            <summary>
+            Compresses data with Brotli at the specified quality level.
+            </summary>
+            <param name="input">The raw bytes to compress.</param>
+            <param name="quality">Brotli quality level (0-11). Default 11 for max compression.</param>
+            <returns>The compressed bytes.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.CompressBrotliAsync(System.Byte[],System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Compresses data with Brotli asynchronously.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.CompressGzip(System.Byte[])">
+            <summary>
+            Compresses data with Gzip at optimal level.
+            </summary>
+            <param name="input">The raw bytes to compress.</param>
+            <returns>The compressed bytes.</returns>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.CompressGzipAsync(System.Byte[],System.Threading.CancellationToken)">
+            <summary>
+            Compresses data with Gzip asynchronously.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Optimization.PreCompressor.CompressBoth(System.Byte[],System.Int32)">
+            <summary>
+            Compresses input and returns both Brotli and Gzip variants.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Plugin">
+            <summary>
+            JellyShim — Performance optimization plugin for Jellyfin.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Plugin.#ctor(MediaBrowser.Common.Configuration.IApplicationPaths,MediaBrowser.Model.Serialization.IXmlSerializer)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Plugin"/> class.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Plugin.Name">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Plugin.Id">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Plugin.Description">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Plugin.Instance">
+            <summary>
+            Gets the current plugin instance.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Plugin.GetPages">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.PluginServiceRegistrator">
+            <summary>
+            Registers JellyShim services into the Jellyfin DI container.
+            This runs during ConfigureServices, before Build(), so IStartupFilter is consumed.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.PluginServiceRegistrator.RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,MediaBrowser.Controller.IServerApplicationHost)">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask">
+            <summary>
+            Scheduled task that pre-optimizes all web assets at startup and on a daily schedule.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.#ctor(Jellyfin.Plugin.JellyShim.Optimization.AssetProcessor,Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge,MediaBrowser.Controller.Configuration.IServerConfigurationManager,Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask"/> class.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.Name">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.Key">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.Description">
+            <inheritdoc />
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.Category">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.ExecuteAsync(System.IProgress{System.Double},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Tasks.OptimizeAssetsTask.GetDefaultTriggers">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.CssTransformer">
+            <summary>
+            Applies additional minification to CSS files using NUglify.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.CssTransformer.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Transformation.CssTransformer})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Transformation.CssTransformer"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.CssTransformer.Minify(System.String)">
+            <summary>
+            Minifies CSS content. Returns original content if minification fails.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.CssTransformer.MinifyBytes(System.Byte[])">
+            <summary>
+            Minifies CSS content in a byte array.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge">
+            <summary>
+            Reflection-based bridge to IAmParadox27's File Transformation plugin.
+            Communicates via reflection across AssemblyLoadContexts — no hard DLL dependency.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge},Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge"/> class.
+            </summary>
+        </member>
+        <member name="P:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge.IsRegistered">
+            <summary>
+            Gets a value indicating whether the File Transformation plugin was detected and registration succeeded.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge.TryRegister(Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Attempts to detect the File Transformation plugin and register our transformations.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationBridge.TryUnregister">
+            <summary>
+            Attempts to unregister our transformations from the File Transformation plugin.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationCallback">
+            <summary>
+            Static callback class invoked by File Transformation plugin via reflection.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.FileTransformationCallback.TransformHtml(System.Object)">
+            <summary>
+            Callback invoked by File Transformation when index.html is requested.
+            Receives a JObject with "contents" property — accessed via reflection.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer">
+            <summary>
+            Optimizes HTML files using AngleSharp DOM manipulation:
+            modulepreload injection, script defer, SRI stripping, and optional critical CSS.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.Transform(System.String,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Applies all HTML optimizations.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.TransformBytes(System.Byte[],Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Transforms HTML content from a byte array.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.TransformStream(System.String,System.IO.Stream,Jellyfin.Plugin.JellyShim.Configuration.PluginConfiguration)">
+            <summary>
+            Callback-compatible transform for File Transformation integration.
+            Reads from stream, transforms, writes back.
+            </summary>
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.MinifyMarkupFormatter">
+            <summary>
+            Minimal HTML formatter that strips unnecessary whitespace.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.HtmlTransformer.MinifyMarkupFormatter.Text(AngleSharp.Dom.ICharacterData)">
+            <inheritdoc />
+        </member>
+        <member name="T:Jellyfin.Plugin.JellyShim.Transformation.JsTransformer">
+            <summary>
+            Applies additional minification to JavaScript files using NUglify.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.JsTransformer.#ctor(Microsoft.Extensions.Logging.ILogger{Jellyfin.Plugin.JellyShim.Transformation.JsTransformer})">
+            <summary>
+            Initializes a new instance of the <see cref="T:Jellyfin.Plugin.JellyShim.Transformation.JsTransformer"/> class.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.JsTransformer.Minify(System.String)">
+            <summary>
+            Minifies JavaScript content. Returns original content if minification fails.
+            </summary>
+        </member>
+        <member name="M:Jellyfin.Plugin.JellyShim.Transformation.JsTransformer.MinifyBytes(System.Byte[])">
+            <summary>
+            Minifies JavaScript content in a byte array.
+            </summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.ImagePathRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the ImagePathRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.ImagePathRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.ImagePathRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.ImagePathRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+    </members>
+</doc>

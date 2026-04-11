@@ -287,6 +287,15 @@ Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli 
 
 ## 📦 Installation
 
+### Add Repository (recommended)
+
+1. In Jellyfin, go to **Dashboard → Plugins → Repositories**
+2. Click **Add** and enter:
+   - **Name:** `JellyShim`
+   - **URL:** `https://raw.githubusercontent.com/alexisometric/jellyshim/main/manifest.json`
+3. Go to **Catalog**, find **JellyShim**, click **Install**
+4. Restart Jellyfin
+
 ### Manual Install
 
 1. Download the latest release DLL from [Releases](../../releases)
