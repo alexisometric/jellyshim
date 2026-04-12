@@ -471,6 +471,27 @@ https://www.gstatic.com</textarea>
                         </div>
                     </div>
 
+                    <!-- ═══ Cache Management ═══ -->
+                    <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
+                        <h2 class="sectionTitle">Cache Management</h2>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 1.5em; flex-wrap: wrap; margin-bottom: 1em;">
+                        <div id="cacheStats" style="font-size: 0.95em; color: rgba(255,255,255,0.7);">
+                            Loading cache info…
+                        </div>
+                        <button id="btnClearCache" is="emby-button" type="button"
+                                class="raised emby-button" style="padding: 0.4em 1.2em;">
+                            <span class="material-icons" style="font-size:1.1em; vertical-align: middle; margin-right: 4px;">delete_sweep</span>
+                            <span>Clear Cache</span>
+                        </button>
+                    </div>
+                    <div class="fieldDescription">
+                        Pre-compressed assets and optimized images are cached on disk.
+                        Clearing the cache forces re-optimization on next access.
+                        You can also trigger this from Dashboard → Scheduled Tasks → JellyShim: Clear Cache.
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -483,6 +504,7 @@ https://www.gstatic.com</textarea>
         <script type="text/javascript">
         var JellyShimConfig = {
             pluginUniqueId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+            clearCacheTaskKey: 'JellyShimClearCache',
 
             // All config field IDs and their types
             checkboxes: [
@@ -565,6 +587,66 @@ https://www.gstatic.com</textarea>
                 });
                 return false;
             });
+
+        // ── Cache management ──
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            var units = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        }
+
+        function loadCacheStats() {
+            var el = document.querySelector('#cacheStats');
+            ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                // Use scheduled tasks endpoint to find our task and its last run info
+                ApiClient.getScheduledTasks().then(function (tasks) {
+                    var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
+                    if (task && task.LastExecutionResult) {
+                        el.textContent = 'Last cleared: ' + new Date(task.LastExecutionResult.EndTimeUtc).toLocaleString();
+                    } else {
+                        el.textContent = 'Cache has never been cleared.';
+                    }
+                }).catch(function () {
+                    el.textContent = '';
+                });
+            }).catch(function () {
+                el.textContent = '';
+            });
+        }
+
+        document.querySelector('#btnClearCache').addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            btn.querySelector('span:last-child').textContent = 'Clearing…';
+
+            // Find the task ID and trigger it
+            ApiClient.getScheduledTasks().then(function (tasks) {
+                var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
+                if (!task) {
+                    Dashboard.alert('Cache clear task not found. Please restart Jellyfin.');
+                    btn.disabled = false;
+                    btn.querySelector('span:last-child').textContent = 'Clear Cache';
+                    return;
+                }
+                ApiClient.startScheduledTask(task.Id).then(function () {
+                    setTimeout(function () {
+                        btn.disabled = false;
+                        btn.querySelector('span:last-child').textContent = 'Clear Cache';
+                        Dashboard.alert('Cache cleared successfully.');
+                        loadCacheStats();
+                    }, 1500);
+                }).catch(function () {
+                    btn.disabled = false;
+                    btn.querySelector('span:last-child').textContent = 'Clear Cache';
+                    Dashboard.alert('Failed to clear cache.');
+                });
+            });
+        });
+
+        // Load cache stats on page show
+        document.querySelector('#JellyShimConfigPage')
+            .addEventListener('pageshow', function () { loadCacheStats(); });
     </script>
     </div>
 </body>

@@ -1,7 +1,10 @@
 using System.IO;
+using System.IO.Compression;
+using System.Text;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Configuration;
+using Jellyfin.Plugin.JellyShim.Transformation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
@@ -50,16 +53,30 @@ public class AssetOptimizationMiddleware
 
     private readonly RequestDelegate _next;
     private readonly DiskCacheManager _cache;
+    private readonly JsTransformer _jsTransformer;
+    private readonly CssTransformer _cssTransformer;
     private readonly ILogger<AssetOptimizationMiddleware> _logger;
     private static int _requestCount;
 
     /// <summary>
+    /// Maximum response body size to capture for on-the-fly optimization (2 MB).
+    /// </summary>
+    private const int MaxPluginCaptureBytes = 2 * 1024 * 1024;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AssetOptimizationMiddleware"/> class.
     /// </summary>
-    public AssetOptimizationMiddleware(RequestDelegate next, DiskCacheManager cache, ILogger<AssetOptimizationMiddleware> logger)
+    public AssetOptimizationMiddleware(
+        RequestDelegate next,
+        DiskCacheManager cache,
+        JsTransformer jsTransformer,
+        CssTransformer cssTransformer,
+        ILogger<AssetOptimizationMiddleware> logger)
     {
         _next = next;
         _cache = cache;
+        _jsTransformer = jsTransformer;
+        _cssTransformer = cssTransformer;
         _logger = logger;
         _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware instantiated");
     }
@@ -188,23 +205,78 @@ public class AssetOptimizationMiddleware
             relativePath = path[5..]; // strip "/web/"
         }
 
-        // Plugin assets aren't pre-processed into our cache (they live in plugin dirs).
-        // For these, pass through with headers, compression handled by Kestrel/reverse-proxy.
+        // Plugin assets: on-the-fly minification + compression + caching.
+        // Captures the response body from the upstream middleware, minifies JS/CSS,
+        // compresses with Brotli/Gzip, caches to disk, and serves the optimized version.
+        if (relativePath is null && isPluginAsset)
+        {
+            var isCompressible = ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+                                 ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase) ||
+                                 ext.Equals(".css", StringComparison.OrdinalIgnoreCase);
+
+            if (!isCompressible)
+            {
+                SetResponseHeaders(context, config, () =>
+                {
+                    if (config.EnableCacheHeaders)
+                    {
+                        SetPassthroughCacheHeaders(context.Response, path, true, config);
+                    }
+                });
+                await _next(context).ConfigureAwait(false);
+                return;
+            }
+
+            // Build a cache key from the full path + query string (plugins use ?v= for versioning)
+            var pluginCacheKey = "plugin" + path + context.Request.QueryString.Value;
+
+            // Determine best encoding
+            var pluginAcceptEncoding = request.Headers.AcceptEncoding.ToString();
+            string? pluginEncoding = null;
+            string? pluginContentEncoding = null;
+
+            if (config.EnableCompression)
+            {
+                if (pluginAcceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+                {
+                    pluginEncoding = "br";
+                    pluginContentEncoding = "br";
+                }
+                else if (pluginAcceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+                {
+                    pluginEncoding = "gz";
+                    pluginContentEncoding = "gzip";
+                }
+            }
+
+            // Try to serve from cache (compressed version first, then raw)
+            string? pluginCachedPath = null;
+            if (pluginEncoding is not null &&
+                _cache.TryGetCachedFile(pluginCacheKey, pluginEncoding, out var pluginCompressedPath))
+            {
+                pluginCachedPath = pluginCompressedPath;
+            }
+
+            if (pluginCachedPath is null && _cache.TryGetCachedFile(pluginCacheKey, "raw", out var pluginRawPath))
+            {
+                pluginCachedPath = pluginRawPath;
+                pluginContentEncoding = null;
+            }
+
+            if (pluginCachedPath is not null)
+            {
+                await ServePluginCachedFile(context, config, pluginCachedPath, ext, pluginContentEncoding, path).ConfigureAwait(false);
+                return;
+            }
+
+            // Cache miss — capture the upstream response, minify, compress, cache, serve
+            await CaptureAndOptimizePluginAsset(context, config, ext, path, pluginCacheKey, pluginEncoding, pluginContentEncoding).ConfigureAwait(false);
+            return;
+        }
+
+        // Non-plugin, non-web pass-through
         if (relativePath is null)
         {
-            SetResponseHeaders(context, config, () =>
-            {
-                if (config.EnableCacheHeaders)
-                {
-                    SetPassthroughCacheHeaders(context.Response, path, isPluginAsset, config);
-                }
-
-                if (config.EnableJsModulepreloadHeaders &&
-                    ext.Equals(".js", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.Response.Headers.Append("Link", $"<{path}>; rel=modulepreload");
-                }
-            });
             await _next(context).ConfigureAwait(false);
             return;
         }
@@ -311,6 +383,215 @@ public class AssetOptimizationMiddleware
         // Stream file directly to response — avoid loading entire file into memory
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
         await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Captures a plugin asset response from upstream, minifies JS/CSS,
+    /// compresses to Brotli/Gzip, caches all variants, and serves the best one.
+    /// </summary>
+    private async Task CaptureAndOptimizePluginAsset(
+        HttpContext context,
+        PluginConfiguration config,
+        string ext,
+        string path,
+        string cacheKey,
+        string? encoding,
+        string? contentEncoding)
+    {
+        var originalBody = context.Response.Body;
+        using var captureStream = new MemoryStream();
+        context.Response.Body = captureStream;
+
+        try
+        {
+            await _next(context).ConfigureAwait(false);
+
+            if (context.Response.StatusCode != StatusCodes.Status200OK ||
+                captureStream.Length == 0 ||
+                captureStream.Length > MaxPluginCaptureBytes)
+            {
+                // Too big or not 200 — just forward the original response
+                captureStream.Position = 0;
+                context.Response.Body = originalBody;
+                await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+                return;
+            }
+
+            var rawBytes = captureStream.ToArray();
+
+            // Minify JS or CSS
+            byte[] optimized = rawBytes;
+            if (config.EnableMinification)
+            {
+                if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase))
+                {
+                    optimized = _jsTransformer.MinifyBytes(rawBytes);
+                }
+                else if (ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+                {
+                    optimized = _cssTransformer.MinifyBytes(rawBytes);
+                }
+            }
+
+            // Cache the raw minified version
+            _cache.Store(cacheKey, "raw", optimized);
+
+            // Compress and cache both variants
+            if (config.EnableCompression)
+            {
+                var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
+                var gzip = CompressGzip(optimized);
+                _cache.Store(cacheKey, "br", brotli);
+                _cache.Store(cacheKey, "gz", gzip);
+
+                _logger.LogInformation(
+                    "[JellyShim] Plugin asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
+                    path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
+            }
+
+            // Serve the best version
+            byte[] toServe;
+            if (encoding is not null)
+            {
+                _cache.TryGetCachedFile(cacheKey, encoding, out var compressedCachePath);
+                toServe = compressedCachePath is not null ? await File.ReadAllBytesAsync(compressedCachePath, context.RequestAborted).ConfigureAwait(false) : optimized;
+                if (compressedCachePath is null)
+                {
+                    contentEncoding = null;
+                }
+            }
+            else
+            {
+                toServe = optimized;
+                contentEncoding = null;
+            }
+
+            context.Response.Body = originalBody;
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = GetContentType(ext);
+            context.Response.ContentLength = toServe.Length;
+
+            if (contentEncoding is not null)
+            {
+                context.Response.Headers.ContentEncoding = contentEncoding;
+            }
+
+            context.Response.Headers.Vary = "Accept-Encoding";
+
+            var etag = _cache.ComputeETag(_cache.GetCachedFilePath(cacheKey, "raw"));
+            context.Response.Headers.ETag = etag;
+
+            if (config.EnableCacheHeaders)
+            {
+                context.Response.Headers[HeaderNames.CacheControl] =
+                    $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+            }
+
+            if (config.EnableCrossOriginResourcePolicy)
+            {
+                context.Response.Headers["Cross-Origin-Resource-Policy"] = config.CrossOriginResourcePolicyValue;
+            }
+
+            AddSecurityHeaders(context.Response, config);
+
+            await context.Response.Body.WriteAsync(toServe, context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "[JellyShim] Failed to optimize plugin asset: {Path}", path);
+
+            // Fall back to forwarding the original captured response
+            captureStream.Position = 0;
+            context.Response.Body = originalBody;
+            await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Serves a previously cached plugin asset with ETag/304 support.
+    /// </summary>
+    private async Task ServePluginCachedFile(
+        HttpContext context,
+        PluginConfiguration config,
+        string cachedPath,
+        string ext,
+        string? contentEncoding,
+        string path)
+    {
+        var response = context.Response;
+        var etag = _cache.ComputeETag(cachedPath);
+
+        if (context.Request.Headers.IfNoneMatch == etag)
+        {
+            response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+
+        var fileInfo = new FileInfo(cachedPath);
+        response.StatusCode = StatusCodes.Status200OK;
+        response.ContentType = GetContentType(ext);
+        response.ContentLength = fileInfo.Length;
+
+        if (contentEncoding is not null)
+        {
+            response.Headers.ContentEncoding = contentEncoding;
+        }
+
+        response.Headers.Vary = "Accept-Encoding";
+        response.Headers.ETag = etag;
+
+        if (config.EnableCacheHeaders)
+        {
+            response.Headers[HeaderNames.CacheControl] =
+                $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+        }
+
+        if (config.EnableJsModulepreloadHeaders &&
+            (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+             ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase)))
+        {
+            response.Headers.Append("Link", $"<{path}>; rel=modulepreload");
+        }
+
+        if (config.EnableCrossOriginResourcePolicy)
+        {
+            response.Headers["Cross-Origin-Resource-Policy"] = config.CrossOriginResourcePolicyValue;
+        }
+
+        AddSecurityHeaders(response, config);
+
+        await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+        await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Compresses data with Brotli.
+    /// </summary>
+    private static byte[] CompressBrotli(byte[] input, int quality)
+    {
+        using var output = new MemoryStream();
+        var level = quality >= 10 ? CompressionLevel.SmallestSize : CompressionLevel.Optimal;
+        using (var brotli = new BrotliStream(output, level, leaveOpen: true))
+        {
+            brotli.Write(input, 0, input.Length);
+        }
+
+        return output.ToArray();
+    }
+
+    /// <summary>
+    /// Compresses data with Gzip.
+    /// </summary>
+    private static byte[] CompressGzip(byte[] input)
+    {
+        using var output = new MemoryStream();
+        using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
+        {
+            gzip.Write(input, 0, input.Length);
+        }
+
+        return output.ToArray();
     }
 
     /// <summary>
