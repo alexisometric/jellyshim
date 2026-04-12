@@ -85,8 +85,9 @@ Whether it's a typo fix, a new optimization, or a performance tweak — every co
 | 6 | [Link Preload Headers](#6--link-preload-headers) | ✅ On | HTTP Link headers for fonts and JS |
 | 7 | [CORS / CORP Headers](#7--cors--corp-headers) | ✅ On | Cross-Origin-Resource-Policy for iframe embedding |
 | 8 | [Security Headers](#8--security-headers) | ❌ Off | X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
-| 9 | [Plugin Asset Support](#9--plugin-asset-support) | ✅ On | Extends optimization to community plugins |
-| 10 | [File Transformation Bridge](#10--file-transformation-bridge) | ✅ On | Optional integration with File Transformation plugin |
+| 9 | [Plugin Asset Support](#9--plugin-asset-support) | ✅ On | On-the-fly minification + compression for community plugin assets |
+| 10 | [File Transformation Bridge](#10--file-transformation-bridge) | ❌ Off | Optional integration with File Transformation plugin |
+| 11 | [Cache Management](#11--cache-management) | — | Clear Cache button + scheduled task |
 
 ---
 
@@ -122,7 +123,7 @@ Original asset: 450 KB
 
 ## 3 · Native Image Optimization
 
-**Built-in image processing powered by [ImageSharp](https://sixlabors.com/products/imagesharp/) + [SkiaSharp](https://github.com/mono/SkiaSharp) — no external service, no Docker sidecar, nothing to install.**
+**Built-in image processing powered by [ImageSharp](https://sixlabors.com/products/imagesharp/) for resizing and Jellyfin's bundled ffmpeg (libaom-av1) for AVIF encoding — no external service, no Docker sidecar, nothing to install.**
 
 JellyShim intercepts all Jellyfin image requests and processes them on the fly:
 
@@ -249,12 +250,17 @@ Optional hardening headers for security-conscious deployments:
 
 ## 9 · Plugin Asset Support
 
-Extends optimization to community plugin static assets by recognizing their URL path prefixes:
+Since v1.0.7, JellyShim captures, minifies, compresses, and caches **third-party plugin assets on the fly** — the same full pipeline that web assets get.
 
-**Pre-configured plugins:**
+**How it works for JS/CSS:**
+1. First request: intercepts the upstream response, minifies with NUglify, compresses Brotli + Gzip, caches all 3 variants (raw/br/gz) to disk
+2. Subsequent requests: served directly from disk cache with ETag/304 support
+3. Non-JS/CSS plugin assets (images, fonts, etc.) get optimized cache headers only
+
+**Pre-configured plugin paths:**
 - JellyTweaks, HomeScreen, MediaBarEnhanced, Announcements, JellyfinEnhanced, JavaScriptInjector
 
-Plugin assets get appropriate cache headers and compression. Add your own paths in the admin UI (one per line).
+Add your own paths in the admin UI (one per line).
 
 > **Config:** `PluginAssetPaths`
 
@@ -264,21 +270,34 @@ Plugin assets get appropriate cache headers and compression. Add your own paths 
 
 Optionally integrates with the [File Transformation](https://github.com/jellyfin/jellyfin-plugin-file-transformation) plugin. When detected, JellyShim registers its HTML optimizer as a runtime transformation callback via reflection — no hard dependency.
 
-> **Config:** `EnableFileTransformationIntegration` (default `true`)
+> **Config:** `EnableFileTransformationIntegration` (default `false`)
+
+---
+
+## 11 · Cache Management
+
+All optimized assets (pre-compressed web assets, on-the-fly plugin assets, processed images) are stored in a disk cache. Two ways to clear it:
+
+- **Config page button** — Dashboard → Plugins → JellyShim → **Clear Cache**
+- **Scheduled task** — Dashboard → Scheduled Tasks → **JellyShim: Clear Cache** (manual trigger, no automatic schedule)
+
+Clearing the cache forces re-optimization on next access. Useful after plugin updates or to reclaim disk space.
 
 ---
 
 ## 🏗️ Architecture
 
-JellyShim injects two ASP.NET Core middlewares early in the Jellyfin HTTP pipeline via `IStartupFilter`:
+JellyShim injects two ASP.NET Core middlewares early in the Jellyfin HTTP pipeline via a custom `IApplicationBuilderFactory`:
 
 ```
 Client Request
        │
        ▼
 ┌──────────────────────────────────┐
-│  ImageOptimizationMiddleware     │  Intercepts /Items/*/Images/*
-│                                  │  and /Users/*/Images/*
+│  ImageOptimizationMiddleware     │  Intercepts all Jellyfin image
+│                                  │  endpoints (Items, Users, Artists,
+│                                  │  Genres, Persons, Studios, etc.)
+│                                  │  including /emby/ and /mediabrowser/
 │  → Check disk cache             │
 │  → If miss: capture response,   │
 │    resize + re-encode, cache     │
@@ -292,6 +311,8 @@ Client Request
 │  → Classify: web / plugin /     │
 │    font / API / other            │
 │  → Serve Brotli/Gzip from cache │
+│  → Plugin JS/CSS: capture,      │
+│    minify, compress, cache       │
 │  → Add Cache-Control, ETag,     │
 │    Vary, CORP, security headers  │
 │  → Skip API endpoints (30+)     │
@@ -303,14 +324,12 @@ Client Request
 └──────────────────────────────────┘
 ```
 
-### Scheduled Task
+### Scheduled Tasks
 
-| Trigger | When |
-|---|---|
-| **Startup** | Immediately on server start |
-| **Daily** | 4:00 AM |
-
-Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli + Gzip → cache to disk.
+| Task | Triggers | Purpose |
+|---|---|---|
+| **Optimize Web Assets** | Startup + daily 4 AM | Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli + Gzip → cache to disk |
+| **Clear Cache** | Manual only | Clears all cached optimized assets; re-optimization happens on next access |
 
 ### Disk Cache Structure
 
@@ -344,7 +363,7 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | `EnableMinification` | bool | `true` |
 | `EnableCompression` | bool | `true` |
 | `BrotliCompressionLevel` | int (0–11) | `11` |
-| `EnableFileTransformationIntegration` | bool | `true` |
+| `EnableFileTransformationIntegration` | bool | `false` |
 
 </details>
 
@@ -465,7 +484,7 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 | [NUglify](https://github.com/trullock/NUglify) | 1.21.17 | JS/CSS minification |
 | [AngleSharp](https://anglesharp.github.io/) | 1.3.0 | HTML DOM parsing & manipulation |
 | [SixLabors.ImageSharp](https://sixlabors.com/products/imagesharp/) | 3.1.12 | Native image resizing & encoding |
-| [SkiaSharp](https://github.com/mono/SkiaSharp) | 2.88.9 | AVIF encoding (provided at runtime by Jellyfin) |
+| ffmpeg (libaom-av1) | bundled | AVIF encoding (uses Jellyfin's bundled ffmpeg — zero install) |
 
 ---
 
@@ -504,7 +523,7 @@ Yes. JellyShim adds proper `Vary`, `Cache-Control`, and `ETag` headers that CDNs
 <details>
 <summary><strong>Does it need imgproxy or any external tool?</strong></summary>
 
-No. Image processing is built-in via ImageSharp. Everything runs inside the Jellyfin process — zero external dependencies.
+No. Image resizing uses ImageSharp (bundled DLL) and AVIF encoding uses Jellyfin's bundled ffmpeg. Everything runs inside the Jellyfin process — zero external dependencies.
 </details>
 
 <details>
