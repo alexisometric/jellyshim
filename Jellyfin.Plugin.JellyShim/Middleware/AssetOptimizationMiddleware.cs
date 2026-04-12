@@ -164,6 +164,24 @@ public class AssetOptimizationMiddleware
 
         // ── Serve compressible assets from cache ──────────────────────
 
+        // NEVER serve HTML from cache — File Transformation plugins (Custom Tabs,
+        // Jellyfin Enhanced, JellyTweaks, etc.) need to process index.html at the
+        // static-file layer.  Short-circuiting would bypass their injections.
+        if (ext.Equals(".html", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".htm", StringComparison.OrdinalIgnoreCase))
+        {
+            SetResponseHeaders(context, config, () =>
+            {
+                if (config.EnableCacheHeaders)
+                {
+                    // Short max-age for HTML — it's the SPA entry point
+                    context.Response.Headers[HeaderNames.CacheControl] = "no-cache";
+                }
+            });
+            await _next(context).ConfigureAwait(false);
+            return;
+        }
+
         string? relativePath = null;
         if (isWebAsset)
         {

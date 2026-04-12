@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.0.5.0",
+        "changelog": "Fix: middleware no longer serves index.html from cache, allowing File Transformation plugins (Custom Tabs, JellyTweaks, Jellyfin Enhanced) to inject their HTML. Disable File Transformation integration by default to prevent conflicts.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.5/jellyshim-v1.0.5.zip",
+        "checksum": "0122599abe58431040ea86d03b7b6c8d",
+        "timestamp": "2026-04-12T14:25:00Z"
+      },
+      {
         "version": "1.0.4.0",
         "changelog": "Fix plugin version display (was always 0.0.0.0), fix config page save (PascalCase keys), fix IStartupFilter middleware injection, move e.preventDefault() before async code.",
         "targetAbi": "10.11.0.0",

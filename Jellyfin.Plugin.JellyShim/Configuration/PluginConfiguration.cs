@@ -18,8 +18,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the Brotli compression level (0-11). 11 is max compression.</summary>
     public int BrotliCompressionLevel { get; set; } = 11;
 
-    /// <summary>Gets or sets a value indicating whether File Transformation plugin integration is enabled.</summary>
-    public bool EnableFileTransformationIntegration { get; set; } = true;
+    /// <summary>Gets or sets a value indicating whether File Transformation plugin integration is enabled.
+    /// Disabled by default — the HTML transformations (defer, modulepreload, preconnect) can
+    /// conflict with other plugins that modify index.html (Custom Tabs, JellyTweaks, etc.).</summary>
+    public bool EnableFileTransformationIntegration { get; set; } = false;
 
     // ── Cache Headers ───────────────────────────────────────────────
 

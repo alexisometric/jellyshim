@@ -49,11 +49,13 @@
 
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
-                            <input id="EnableFileTransformationIntegration" type="checkbox" is="emby-checkbox" checked />
+                            <input id="EnableFileTransformationIntegration" type="checkbox" is="emby-checkbox" />
                             <span>Enable File Transformation Integration</span>
                         </label>
                         <div class="fieldDescription">
-                            If the File Transformation plugin is installed, register runtime HTML transformations.
+                            If the File Transformation plugin is installed, register runtime HTML transformations
+                            (defer, modulepreload, preconnect). <strong>Warning:</strong> may conflict with Custom Tabs,
+                            JellyTweaks, and other plugins that also modify index.html.
                         </div>
                     </div>
 
@@ -476,9 +478,8 @@ https://www.gstatic.com</textarea>
                 </form>
             </div>
         </div>
-    </div>
 
-    <script type="text/javascript">
+        <script type="text/javascript">
         var JellyShimConfig = {
             pluginUniqueId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
 
@@ -564,5 +565,6 @@ https://www.gstatic.com</textarea>
                 return false;
             });
     </script>
+    </div>
 </body>
 </html>
