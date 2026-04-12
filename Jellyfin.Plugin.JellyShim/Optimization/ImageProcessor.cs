@@ -1,23 +1,25 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SkiaSharp;
 
 namespace Jellyfin.Plugin.JellyShim.Optimization;
 
 /// <summary>
 /// Native image processor using ImageSharp — resizes, re-encodes, and compresses images
 /// without any external service dependency.
+/// AVIF encoding uses Jellyfin's bundled ffmpeg (libaom-av1) — zero additional install required.
 /// </summary>
 public class ImageProcessor
 {
     private readonly ILogger<ImageProcessor> _logger;
     private readonly Lazy<bool> _avifSupported;
+    private string? _ffmpegPath;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ImageProcessor"/> class.
@@ -29,8 +31,8 @@ public class ImageProcessor
     }
 
     /// <summary>
-    /// Gets a value indicating whether the runtime SkiaSharp build supports AVIF encoding.
-    /// Probed once on first access via a 1×1 test encode.
+    /// Gets a value indicating whether ffmpeg with libaom-av1 is available for AVIF encoding.
+    /// Probed once on first access.
     /// </summary>
     public bool IsAvifSupported => _avifSupported.Value;
 
@@ -103,48 +105,74 @@ public class ImageProcessor
     }
 
     /// <summary>
-    /// Encodes an ImageSharp image to AVIF using SkiaSharp (provided at runtime by Jellyfin).
-    /// Falls back to WebP if the runtime Skia build lacks AVIF codec support.
+    /// Encodes an ImageSharp image to AVIF using Jellyfin's bundled ffmpeg (libaom-av1 encoder).
+    /// Uses temp files for maximum compatibility across ffmpeg versions.
+    /// Falls back to WebP if encoding fails.
     /// </summary>
     private void EncodeAvif(Image image, MemoryStream output, int quality)
     {
-        var width = image.Width;
-        var height = image.Height;
-        var pixelData = new byte[width * height * 4];
-        using (var rgba = image.CloneAs<Rgba32>())
+        if (_ffmpegPath is null)
         {
-            rgba.CopyPixelDataTo(pixelData);
+            _logger.LogWarning("[JellyShim] ffmpeg not available, falling back to WebP");
+            image.Save(output, new WebpEncoder { Quality = quality, Method = WebpEncodingMethod.BestQuality });
+            return;
         }
 
-        var skInfo = new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
-        using var skBitmap = new SKBitmap(skInfo);
+        var tempDir = Path.GetTempPath();
+        var id = Guid.NewGuid().ToString("N");
+        var inputPath = Path.Combine(tempDir, $"jellyshim_{id}.png");
+        var outputPath = Path.Combine(tempDir, $"jellyshim_{id}.avif");
 
-        var handle = System.Runtime.InteropServices.GCHandle.Alloc(pixelData, System.Runtime.InteropServices.GCHandleType.Pinned);
         try
         {
-            skBitmap.SetPixels(handle.AddrOfPinnedObject());
+            // Save as PNG (lossless intermediate, fast compression)
+            image.Save(inputPath, new PngEncoder { CompressionLevel = PngCompressionLevel.BestSpeed });
 
-            using var skImage = SKImage.FromBitmap(skBitmap);
-            using var avifData = skImage.Encode(SKEncodedImageFormat.Avif, quality);
+            // Map quality (1-100) to CRF (63-0): lower CRF = higher quality
+            var crf = (int)(63.0 * (100 - quality) / 100.0);
 
-            if (avifData is not null && avifData.Size > 0)
+            using var process = new Process();
+            process.StartInfo = new ProcessStartInfo
             {
-                avifData.SaveTo(output);
+                FileName = _ffmpegPath,
+                Arguments = $"-hide_banner -loglevel error -y -i \"{inputPath}\" -c:v libaom-av1 -still-picture 1 -crf {crf} -cpu-used 6 -pix_fmt yuv420p \"{outputPath}\"",
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            process.Start();
+            var stderr = process.StandardError.ReadToEnd();
+
+            if (!process.WaitForExit(30_000))
+            {
+                try { process.Kill(true); } catch { }
+                _logger.LogWarning("[JellyShim] ffmpeg AVIF encoding timed out, falling back to WebP");
+                image.Save(output, new WebpEncoder { Quality = quality, Method = WebpEncodingMethod.BestQuality });
                 return;
             }
+
+            if (process.ExitCode != 0)
+            {
+                _logger.LogWarning("[JellyShim] ffmpeg AVIF encoding failed (exit {Code}): {Error}, falling back to WebP", process.ExitCode, stderr);
+                image.Save(output, new WebpEncoder { Quality = quality, Method = WebpEncodingMethod.BestQuality });
+                return;
+            }
+
+            var avifBytes = File.ReadAllBytes(outputPath);
+            output.Write(avifBytes, 0, avifBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[JellyShim] AVIF encoding exception, falling back to WebP");
+            output.SetLength(0);
+            image.Save(output, new WebpEncoder { Quality = quality, Method = WebpEncodingMethod.BestQuality });
         }
         finally
         {
-            handle.Free();
+            try { File.Delete(inputPath); } catch { }
+            try { File.Delete(outputPath); } catch { }
         }
-
-        // Fallback to WebP if AVIF encoding is not supported by the runtime Skia build
-        _logger.LogWarning("[JellyShim] AVIF encoding not supported by runtime, falling back to WebP");
-        image.Save(output, new WebpEncoder
-        {
-            Quality = quality,
-            Method = WebpEncodingMethod.BestQuality
-        });
     }
 
     /// <summary>
@@ -161,23 +189,89 @@ public class ImageProcessor
     }
 
     /// <summary>
-    /// Probes whether the runtime SkiaSharp build can encode AVIF by attempting a 1×1 test encode.
+    /// Probes whether ffmpeg with libaom-av1 encoder is available for AVIF encoding.
     /// </summary>
     private bool ProbeAvifSupport()
     {
+        _ffmpegPath = FindFfmpegPath();
+        if (_ffmpegPath is null)
+        {
+            _logger.LogInformation("[JellyShim] ffmpeg not found — AVIF encoding disabled, using WebP/JPEG");
+            return false;
+        }
+
+        _logger.LogInformation("[JellyShim] Found ffmpeg at: {Path}", _ffmpegPath);
+
         try
         {
-            using var bitmap = new SKBitmap(new SKImageInfo(1, 1));
-            using var img = SKImage.FromBitmap(bitmap);
-            using var data = img.Encode(SKEncodedImageFormat.Avif, 80);
-            var supported = data is not null && data.Size > 0;
-            _logger.LogInformation("[JellyShim] AVIF encoding support: {Supported}", supported);
+            using var process = new Process();
+            process.StartInfo = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = "-hide_banner -encoders",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            process.Start();
+            var stdout = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5_000);
+
+            var supported = stdout.Contains("libaom-av1", StringComparison.OrdinalIgnoreCase);
+            _logger.LogInformation("[JellyShim] AVIF encoding support (ffmpeg libaom-av1): {Supported}", supported);
             return supported;
         }
         catch (Exception ex)
         {
-            _logger.LogInformation("[JellyShim] AVIF encoding not available: {Message}", ex.Message);
+            _logger.LogWarning(ex, "[JellyShim] Failed to probe ffmpeg for AVIF support");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Finds the ffmpeg binary on the system (Jellyfin-bundled or system-wide).
+    /// </summary>
+    private static string? FindFfmpegPath()
+    {
+        string[] candidates =
+        {
+            "ffmpeg",
+            "/usr/lib/jellyfin-ffmpeg/ffmpeg",
+            "/usr/lib/jellyfin-ffmpeg/ffmpeg7",
+            "/usr/bin/ffmpeg"
+        };
+
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                using var process = new Process();
+                process.StartInfo = new ProcessStartInfo
+                {
+                    FileName = candidate,
+                    Arguments = "-version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                process.Start();
+                process.WaitForExit(5_000);
+
+                if (process.ExitCode == 0)
+                {
+                    return candidate;
+                }
+            }
+            catch
+            {
+                // Not found at this path, try next
+            }
+        }
+
+        return null;
     }
 }

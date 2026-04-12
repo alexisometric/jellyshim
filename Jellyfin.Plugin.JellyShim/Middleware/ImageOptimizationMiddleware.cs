@@ -19,9 +19,12 @@ namespace Jellyfin.Plugin.JellyShim.Middleware;
 /// </summary>
 public partial class ImageOptimizationMiddleware
 {
-    // Matches: /Items/{id}/Images/{type} and /Items/{id}/Images/{type}/{index}
-    // Also: /Users/{id}/Images/{type}
-    [GeneratedRegex(@"^/(Items|Users)/[^/]+/Images/([^/?]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    // Matches all Jellyfin image endpoints:
+    //   /Items/{id}/Images/{type}[/{index}]
+    //   /Users/{id}/Images/{type}
+    //   /Artists|Genres|MusicGenres|Persons|Studios|Years/{name}/Images/{type}
+    // Also handles /emby/ and /mediabrowser/ compatibility prefixes
+    [GeneratedRegex(@"^(?:/emby|/mediabrowser)?/(?:Items|Users|Artists|Genres|MusicGenres|Persons|Studios|Years)/[^/]+/Images/([^/?]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex ImagePathRegex();
 
     private readonly RequestDelegate _next;
@@ -84,7 +87,7 @@ public partial class ImageOptimizationMiddleware
             return;
         }
 
-        var imageType = match.Groups[2].Value;
+        var imageType = match.Groups[1].Value;
         var (maxWidth, quality) = GetImageSettings(imageType, config);
         quality = Math.Clamp(quality, 1, 100);
         maxWidth = Math.Max(0, maxWidth);
@@ -246,7 +249,7 @@ public partial class ImageOptimizationMiddleware
     /// <summary>
     /// Selects output format based on Accept header and config preference.
     /// Supports AVIF, WebP, and JPEG output with automatic negotiation.
-    /// AVIF is only returned if the runtime SkiaSharp build supports it.
+    /// AVIF requires ffmpeg with libaom-av1 encoder (bundled with Jellyfin).
     /// </summary>
     private string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config)
     {
