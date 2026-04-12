@@ -6,10 +6,9 @@
     <AssemblyName>Jellyfin.Plugin.JellyShim</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Version>1.0.3.0</Version>
+    <Version>1.0.4.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

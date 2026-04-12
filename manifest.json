@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.0.4.0",
+        "changelog": "Fix plugin version display (was always 0.0.0.0), fix config page save (PascalCase keys), fix IStartupFilter middleware injection, move e.preventDefault() before async code.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.4/jellyshim-v1.0.4.zip",
+        "checksum": "58638ed8a157cd09a30e055e0e0948e7",
+        "timestamp": "2026-04-12T13:00:00Z"
+      },
+      {
         "version": "1.0.3.0",
         "changelog": "Fix middleware injection — replace IStartupFilter with custom IApplicationBuilderFactory that reliably injects middleware into the HTTP pipeline. Add diagnostic logging for middleware lifecycle. Config page now appears directly in the dashboard sidebar menu.",
         "targetAbi": "10.11.0.0",

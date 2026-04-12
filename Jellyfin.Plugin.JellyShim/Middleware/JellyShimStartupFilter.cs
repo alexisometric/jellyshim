@@ -5,10 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
 /// <summary>
-/// Fallback mechanism to inject JellyShim middlewares into the Jellyfin HTTP pipeline
-/// via <see cref="IStartupFilter"/>. The primary mechanism is
-/// <see cref="JellyShimApplicationBuilderFactory"/>; this filter only activates when
-/// the factory was not used.
+/// Injects JellyShim middlewares into the Jellyfin HTTP pipeline via <see cref="IStartupFilter"/>.
+/// This wraps the entire pipeline so our middleware runs first on every request.
 /// </summary>
 public class JellyShimStartupFilter : IStartupFilter
 {
@@ -25,7 +23,20 @@ public class JellyShimStartupFilter : IStartupFilter
     /// <inheritdoc />
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
     {
-        _logger.LogInformation("[JellyShim] IStartupFilter.Configure called — middleware already injected via factory, skipping duplicate registration");
-        return next;
+        _logger.LogInformation("[JellyShim] IStartupFilter.Configure invoked — injecting middleware into pipeline");
+
+        return app =>
+        {
+            // Image optimization first (intercepts /Items/*/Images/*)
+            app.UseMiddleware<ImageOptimizationMiddleware>();
+
+            // Asset optimization (serves /web/* from cache, adds headers to plugin paths)
+            app.UseMiddleware<AssetOptimizationMiddleware>();
+
+            _logger.LogInformation("[JellyShim] Middleware registered via IStartupFilter (before Jellyfin pipeline)");
+
+            // Continue with the rest of the pipeline (Jellyfin's own middleware)
+            next(app);
+        };
     }
 }
