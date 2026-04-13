@@ -39,6 +39,18 @@ public class JsTransformer
         var result = Uglify.Js(input);
         if (result.HasErrors)
         {
+            // NUglify often still produces valid output for non-fatal errors
+            // (e.g. strict-mode duplicate properties, unusual syntax). Use it if smaller.
+            if (!string.IsNullOrEmpty(result.Code) && result.Code.Length < input.Length)
+            {
+                foreach (var error in result.Errors)
+                {
+                    _logger.LogDebug("[JellyShim] JS minification warning (non-fatal): {Error}", error.Message);
+                }
+
+                return result.Code;
+            }
+
             foreach (var error in result.Errors)
             {
                 _logger.LogWarning("[JellyShim] JS minification error: {Error}", error.Message);

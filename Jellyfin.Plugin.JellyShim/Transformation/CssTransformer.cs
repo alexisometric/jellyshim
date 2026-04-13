@@ -40,6 +40,18 @@ public class CssTransformer
         var result = Uglify.Css(input);
         if (result.HasErrors)
         {
+            // NUglify often still produces valid output for non-fatal errors
+            // (e.g. invalid unicode-range tokens, unusual syntax). Use it if smaller.
+            if (!string.IsNullOrEmpty(result.Code) && result.Code.Length < input.Length)
+            {
+                foreach (var error in result.Errors)
+                {
+                    _logger.LogDebug("[JellyShim] CSS minification warning (non-fatal): {Error}", error.Message);
+                }
+
+                return InjectFontDisplaySwap(result.Code);
+            }
+
             foreach (var error in result.Errors)
             {
                 _logger.LogWarning("[JellyShim] CSS minification error: {Error}", error.Message);

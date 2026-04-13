@@ -141,6 +141,31 @@ public class CssTransformerTests
         Assert.NotNull(result);
     }
 
+    [Fact]
+    public void Minify_UsesOutput_WhenNonFatalErrors()
+    {
+        // Invalid unicode-range token — NUglify reports error but still produces
+        // smaller valid output; the transformer should use it instead of falling back.
+        var input = """
+            @font-face {
+                font-family: "TestFont";
+                src: url("test.woff2") format("woff2");
+                unicode-range: U+700-45f;
+                font-weight: 400;
+            }
+            .body {
+                margin: 0;
+                padding: 0;
+            }
+            """;
+
+        var result = _transformer.Minify(input);
+
+        // Should be minified (shorter than input), not the original
+        Assert.True(result.Length < input.Length, "Non-fatal errors should still produce minified output");
+        Assert.Contains(".body", result);
+    }
+
     // ── font-display:swap injection tests ──────────────────────────
 
     [Fact]

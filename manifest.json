@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.0.11.0",
+        "changelog": "Resilient minification: NUglify non-fatal errors (invalid unicode-range tokens, strict-mode duplicate properties) no longer skip minification — output is used when valid and smaller. Fixes unminified third-party CSS (web fonts) and JS (KefinTweaks). 2 new unit tests (84 total).",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.11/jellyshim-v1.0.11.zip",
+        "checksum": "31122aa7136d1ea286dd88125f3da2bd",
+        "timestamp": "2026-04-13T17:45:00Z"
+      },
+      {
         "version": "1.0.10.0",
         "changelog": "Fix extensionless plugin asset compression (JellyfinEnhanced/script, JellyTweaks/script now served with Brotli/Gzip). Compress JSON plugin endpoints (public-config, Config). Inject font-display:swap into @font-face CSS rules to eliminate FOIT. 8 new unit tests (82 total).",
         "targetAbi": "10.11.0.0",

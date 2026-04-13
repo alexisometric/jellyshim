@@ -129,4 +129,25 @@ public class JsTransformerTests
         var result = _transformer.Minify(input);
         Assert.NotNull(result);
     }
+
+    [Fact]
+    public void Minify_UsesOutput_WhenNonFatalErrors()
+    {
+        // Duplicate property names in strict mode — NUglify reports error but still produces
+        // smaller valid output; the transformer should use it instead of falling back.
+        var input = """
+            "use strict";
+            var obj = {
+                name: "hello",
+                name: "world"
+            };
+            console.log(obj);
+            """;
+
+        var result = _transformer.Minify(input);
+
+        // Should be minified (shorter than input), not the original
+        Assert.True(result.Length < input.Length, "Non-fatal errors should still produce minified output");
+        Assert.Contains("hello", result);
+    }
 }
