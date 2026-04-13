@@ -32,8 +32,7 @@ Thumbs.db
 desktop.ini
 
 ## Local tooling
-.github/copilot-instructions.md
-.github/hooks/
+.github/
 
 ## Build artifacts
 publish/

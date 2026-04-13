@@ -14,12 +14,13 @@
 
 Out of the box, Jellyfin serves uncompressed web assets, full-resolution images, and minimal cache headers. On slow networks, mobile clients, or instances with lots of media, this translates to **seconds of unnecessary loading**.
 
-JellyShim fixes all of that in one plugin:
+JellyShim fixes all of that in one plugin — no configuration needed:
 
-- **60–90 % smaller** JS/CSS/HTML via minification + Brotli pre-compression
-- **50–80 % smaller** images via native resizing + AVIF/WebP conversion
-- **Instant repeat visits** via intelligent caching with ETag + 304 support
-- **Faster first paint** via modulepreload, script defer, preconnect hints
+- **60–90 % smaller assets** — JS/CSS minification + Brotli/Gzip pre-compression
+- **50–80 % smaller images** — native resizing + AVIF/WebP conversion (opt-in)
+- **Instant repeat visits** — intelligent disk caching with ETag + 304 Not Modified support
+- **Faster first paint** — HTTP `Link` modulepreload and font preload headers
+- **Third-party plugin assets** — JS/CSS from JellyTweaks, JellyfinEnhanced, etc. get the same full pipeline
 
 **Install → Restart → Done.** Most optimizations are on by default. Nothing on disk is modified — disable the plugin and everything reverts instantly.
 
@@ -81,23 +82,23 @@ Whether it's a typo fix, a new optimization, or a performance tweak — every co
 | 2 | [Brotli/Gzip Pre-compression](#2--brotligzip-pre-compression) | ✅ On | Pre-compresses all text assets to disk cache |
 | 3 | [Native Image Optimization](#3--native-image-optimization) | ❌ Off | Resize + re-encode every Jellyfin image in-process (AVIF/WebP/JPEG) |
 | 4 | [Smart Cache Headers](#4--smart-cache-headers) | ✅ On | Optimal Cache-Control per asset type |
-| 5 | [HTML Optimization](#5--html-optimization) | ✅ On | Modulepreload, defer, preconnect, DNS-prefetch |
-| 6 | [Link Preload Headers](#6--link-preload-headers) | ✅ On | HTTP Link headers for fonts and JS |
-| 7 | [CORS / CORP Headers](#7--cors--corp-headers) | ✅ On | Cross-Origin-Resource-Policy for iframe embedding |
-| 8 | [Security Headers](#8--security-headers) | ❌ Off | X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
-| 9 | [Plugin Asset Support](#9--plugin-asset-support) | ✅ On | On-the-fly minification + compression for community plugin assets |
-| 10 | [File Transformation Bridge](#10--file-transformation-bridge) | ❌ Off | Optional integration with File Transformation plugin |
-| 11 | [Cache Management](#11--cache-management) | — | Clear Cache button + scheduled task |
+| 5 | [Link Preload Headers](#5--link-preload-headers) | ✅ On | HTTP Link headers for fonts and JS |
+| 6 | [CORS / CORP Headers](#6--cors--corp-headers) | ✅ On | Cross-Origin-Resource-Policy for iframe embedding |
+| 7 | [Security Headers](#7--security-headers) | ❌ Off | X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
+| 8 | [Plugin Asset Support](#8--plugin-asset-support) | ✅ On | On-the-fly minification + compression for community plugin assets |
+| 9 | [Cache Management](#9--cache-management) | — | Clear Cache button + scheduled task |
 
 ---
 
 ## 1 · JS/CSS Minification
 
-Uses [NUglify](https://github.com/trullock/NUglify) to minify JavaScript and CSS at build time.
+Uses [NUglify](https://github.com/trullock/NUglify) to minify JavaScript and CSS.
 
-- Automatically skips already-minified files (`.min.js` / `.min.css`)
-- Falls back to original on any error — never breaks assets
-- Runs as part of the startup pre-processing pipeline
+- **Pre-built assets** (under `/web/`) are minified during the startup scan
+- **Plugin assets** (JellyTweaks, JellyfinEnhanced, etc.) are minified on-the-fly on first request
+- **Extensionless URLs** (e.g. `/JellyfinEnhanced/script`) are detected via Content-Type sniffing
+- Automatically skips already-minified files (heuristic: < 1 % newlines)
+- Falls back to original on any parse error — never breaks assets
 
 > **Config:** `EnableMinification` · default `true`
 
@@ -188,31 +189,7 @@ Applies optimal `Cache-Control`, `ETag`, `Vary`, and `stale-while-revalidate` he
 
 ---
 
-## 5 · HTML Optimization
-
-Processes HTML responses through [AngleSharp](https://anglesharp.github.io/) DOM manipulation:
-
-| Optimization | What it does |
-|---|---|
-| **Modulepreload** | Injects `<link rel="modulepreload">` for all JS bundles — eliminates module loading waterfalls |
-| **Script defer** | Adds `defer` to non-critical `<script>` tags — unblocks rendering |
-| **Preconnect hints** | Injects `<link rel="preconnect">` + `<link rel="dns-prefetch">` for external origins |
-| **SRI stripping** | Removes `integrity` attributes from modified resources to prevent hash mismatches |
-| **HTML minification** | Collapses whitespace (preserves `<script>`, `<style>`, `<pre>`, `<textarea>`) |
-
-Default preconnect origins:
-```
-https://fonts.googleapis.com
-https://fonts.gstatic.com
-https://cdn.jsdelivr.net
-https://www.gstatic.com
-```
-
-> **Config:** `EnablePreloadInjection` · `EnableScriptDefer` · `EnablePreconnectHints` · `StripSriOnModification` · `PreconnectOrigins`
-
----
-
-## 6 · Link Preload Headers
+## 5 · Link Preload Headers
 
 Adds HTTP `Link` headers that trigger the browser to start fetching critical resources **during** the HTTP response — before the HTML parser even sees the `<link>` tags:
 
@@ -223,7 +200,7 @@ Adds HTTP `Link` headers that trigger the browser to start fetching critical res
 
 ---
 
-## 7 · CORS / CORP Headers
+## 6 · CORS / CORP Headers
 
 Adds `Cross-Origin-Resource-Policy` to all static assets and images:
 
@@ -234,7 +211,7 @@ Adds `Cross-Origin-Resource-Policy` to all static assets and images:
 
 ---
 
-## 8 · Security Headers
+## 7 · Security Headers
 
 Optional hardening headers for security-conscious deployments:
 
@@ -248,7 +225,7 @@ Optional hardening headers for security-conscious deployments:
 
 ---
 
-## 9 · Plugin Asset Support
+## 8 · Plugin Asset Support
 
 Since v1.0.7, JellyShim captures, minifies, compresses, and caches **third-party plugin assets on the fly** — the same full pipeline that web assets get.
 
@@ -257,24 +234,18 @@ Since v1.0.7, JellyShim captures, minifies, compresses, and caches **third-party
 2. Subsequent requests: served directly from disk cache with ETag/304 support
 3. Non-JS/CSS plugin assets (images, fonts, etc.) get optimized cache headers only
 
+**Supports extensionless URLs** — Assets served without file extensions (e.g. `/JellyfinEnhanced/script`) are detected via upstream `Content-Type` header and minified accordingly.
+
 **Pre-configured plugin paths:**
 - JellyTweaks, HomeScreen, MediaBarEnhanced, Announcements, JellyfinEnhanced, JavaScriptInjector
 
-Add your own paths in the admin UI (one per line).
+Add your own paths in the admin UI (one per line, e.g. `/MyPlugin/`).
 
 > **Config:** `PluginAssetPaths`
 
 ---
 
-## 10 · File Transformation Bridge
-
-Optionally integrates with the [File Transformation](https://github.com/jellyfin/jellyfin-plugin-file-transformation) plugin. When detected, JellyShim registers its HTML optimizer as a runtime transformation callback via reflection — no hard dependency.
-
-> **Config:** `EnableFileTransformationIntegration` (default `false`)
-
----
-
-## 11 · Cache Management
+## 9 · Cache Management
 
 All optimized assets (pre-compressed web assets, on-the-fly plugin assets, processed images) are stored in a disk cache. Two ways to clear it:
 
@@ -363,7 +334,6 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | `EnableMinification` | bool | `true` |
 | `EnableCompression` | bool | `true` |
 | `BrotliCompressionLevel` | int (0–11) | `11` |
-| `EnableFileTransformationIntegration` | bool | `false` |
 
 </details>
 
@@ -379,19 +349,6 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | `StaleWhileRevalidate` | seconds | `86400` (1 day) |
 | `ImageCacheMaxAge` | seconds | `2592000` (30 days) |
 | `ImageStaleWhileRevalidate` | seconds | `604800` (7 days) |
-
-</details>
-
-<details>
-<summary><strong>HTML Optimization</strong></summary>
-
-| Property | Type | Default |
-|---|---|---|
-| `EnablePreloadInjection` | bool | `true` |
-| `EnableScriptDefer` | bool | `true` |
-| `StripSriOnModification` | bool | `true` |
-| `EnablePreconnectHints` | bool | `true` |
-| `PreconnectOrigins` | string (multiline) | Google Fonts, gstatic, jsDelivr |
 
 </details>
 
@@ -447,10 +404,11 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 ## 🔒 Security
 
 - **No files modified on disk** — All optimizations live in the cache directory
-- **Path traversal protection** — Cache rejects `..` segments, validates resolved paths
-- **API endpoints never cached** — 30+ Jellyfin API prefixes explicitly excluded
-- **Image size limit** — Rejects images larger than 50 MB
-- **SRI safety** — Strips integrity attributes from modified resources
+- **Path traversal protection** — Cache rejects `..` segments AND validates the resolved path stays under the cache root
+- **API endpoints never cached** — 30+ Jellyfin API prefixes explicitly excluded with `no-store`
+- **Image size limit** — Rejects images larger than 50 MB before processing
+- **Plugin asset size limit** — Responses larger than 2 MB are not captured
+- **Upstream decompression safety net** — If upstream middleware compresses despite `Accept-Encoding` stripping, JellyShim decompresses before minification to avoid corruption
 - **Optional security headers** — Referrer-Policy, Permissions-Policy, X-Content-Type-Options
 
 ---
@@ -482,7 +440,6 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 | Package | Version | Purpose |
 |---|---|---|
 | [NUglify](https://github.com/trullock/NUglify) | 1.21.17 | JS/CSS minification |
-| [AngleSharp](https://anglesharp.github.io/) | 1.3.0 | HTML DOM parsing & manipulation |
 | [SixLabors.ImageSharp](https://sixlabors.com/products/imagesharp/) | 3.1.12 | Native image resizing & encoding |
 | ffmpeg (libaom-av1) | bundled | AVIF encoding (uses Jellyfin's bundled ffmpeg — zero install) |
 
@@ -544,3 +501,108 @@ MIT — see [LICENSE](LICENSE) for details.
   <sub>Built to make every Jellyfin instance faster. ⚡</sub><br/>
   <sub><a href="https://github.com/alexisometric/jellyshim/issues">Report a bug</a> · <a href="https://github.com/alexisometric/jellyshim/issues">Request a feature</a> · <a href="https://github.com/alexisometric/jellyshim/pulls">Contribute</a></sub>
 </p>
+
+---
+
+<details>
+<summary><h2>🇫🇷 Version française</h2></summary>
+
+### Pourquoi JellyShim ?
+
+Par défaut, Jellyfin sert ses fichiers web sans compression, ses images en pleine résolution, et avec des en-têtes de cache minimaux. Sur un réseau lent, un client mobile, ou une instance avec beaucoup de médias, cela se traduit par **des secondes de chargement inutiles**.
+
+JellyShim corrige tout ça en un seul plugin — aucune configuration requise :
+
+- **60–90 % de fichiers en moins** — Minification JS/CSS + pré-compression Brotli/Gzip
+- **50–80 % d'images en moins** — Redimensionnement natif + conversion AVIF/WebP (optionnel)
+- **Visites répétées instantanées** — Cache disque intelligent avec ETag + support 304 Not Modified
+- **Premier affichage plus rapide** — En-têtes HTTP `Link` modulepreload et preload pour les polices
+- **Assets de plugins tiers** — Le JS/CSS de JellyTweaks, JellyfinEnhanced, etc. bénéficie du même pipeline complet
+
+**Installer → Redémarrer → C'est fait.** La plupart des optimisations sont activées par défaut. Aucun fichier n'est modifié sur le disque — désactivez le plugin et tout revient à la normale instantanément.
+
+### Installation
+
+#### Via le dépôt (recommandé)
+
+1. Dans Jellyfin, allez dans **Tableau de bord → Plugins → Dépôts**
+2. Cliquez **Ajouter** et entrez :
+   - **Nom :** `JellyShim`
+   - **URL :** `https://raw.githubusercontent.com/alexisometric/jellyshim/main/manifest.json`
+3. Allez dans le **Catalogue**, trouvez **JellyShim**, cliquez **Installer**
+4. Redémarrez Jellyfin
+
+#### Installation manuelle
+
+1. Téléchargez le dernier ZIP depuis les [Releases](../../releases)
+2. Copiez-le dans le dossier plugins de Jellyfin :
+
+   | Plateforme | Chemin |
+   |---|---|
+   | Linux | `~/.local/share/jellyfin/plugins/JellyShim/` |
+   | Docker | `/config/plugins/JellyShim/` |
+   | Windows | `%APPDATA%\jellyfin\plugins\JellyShim\` |
+
+3. Redémarrez Jellyfin
+
+### Fonctionnalités
+
+| # | Fonctionnalité | Par défaut | Description |
+|---|---|:---:|---|
+| 1 | Minification JS/CSS | ✅ Activé | Supprime les espaces, commentaires, raccourcit les noms de variables |
+| 2 | Pré-compression Brotli/Gzip | ✅ Activé | Pré-compresse tous les assets texte dans un cache disque |
+| 3 | Optimisation d'images | ❌ Désactivé | Redimensionne + ré-encode chaque image Jellyfin (AVIF/WebP/JPEG) |
+| 4 | En-têtes de cache intelligents | ✅ Activé | `Cache-Control` optimal selon le type d'asset |
+| 5 | En-têtes Link preload | ✅ Activé | En-têtes HTTP `Link` pour les polices et le JavaScript |
+| 6 | En-têtes CORS / CORP | ✅ Activé | `Cross-Origin-Resource-Policy` pour l'intégration en iframe |
+| 7 | En-têtes de sécurité | ❌ Désactivé | `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` |
+| 8 | Support des plugins tiers | ✅ Activé | Minification + compression à la volée pour les assets de plugins communautaires |
+| 9 | Gestion du cache | — | Bouton de vidage du cache + tâche planifiée |
+
+### Sécurité
+
+- **Aucun fichier modifié** — Toutes les optimisations vivent dans le répertoire de cache
+- **Protection contre le path traversal** — Le cache rejette les segments `..` et valide que le chemin résolu reste sous la racine du cache
+- **Les endpoints API ne sont jamais mis en cache** — 30+ préfixes de l'API Jellyfin explicitement exclus avec `no-store`
+- **Limite de taille des images** — Les images de plus de 50 Mo sont rejetées
+- **Limite de taille des assets plugin** — Les réponses de plus de 2 Mo ne sont pas capturées
+- **Filet de sécurité pour la décompression** — Si le middleware upstream compresse malgré la suppression de `Accept-Encoding`, JellyShim décompresse avant la minification pour éviter toute corruption
+
+### Compatibilité
+
+| | Compatible |
+|---|---|
+| **Jellyfin** | 10.11.x et supérieur |
+| **Plateformes** | Linux, Windows, macOS, Docker |
+| **Reverse proxies** | Nginx, Caddy, Traefik, Apache, HAProxy |
+| **Plugins communautaires** | JellyTweaks, HomeScreen, MediaBarEnhanced, JellyfinEnhanced, etc. |
+| **Thèmes** | Tous les thèmes Jellyfin (rien n'est modifié sur le disque) |
+| **Clients** | Web, mobile, TV — tous bénéficient de transferts plus légers |
+| **Tableaux de bord iframe** | Jellyseerr, Organizr, Homepage (via l'en-tête CORP) |
+
+### Ce que JellyShim ne fait PAS
+
+- ❌ Ne modifie **aucun** fichier original sur le disque
+- ❌ Ne met **pas** en cache et n'interfère **pas** avec les réponses API ou les données dynamiques
+- ❌ Ne nécessite **aucun** service externe, conteneur Docker supplémentaire ou processus en arrière-plan
+- ❌ N'affecte **en rien** le streaming, le transcodage ou la lecture
+- ❌ Désactivez le plugin → **tout revient à la normale instantanément**
+
+### FAQ
+
+**Ça va casser ma config Jellyfin ?**
+Non. JellyShim intercepte uniquement les réponses HTTP — il ne modifie jamais les fichiers originaux. Désactivez le plugin et tout redevient normal.
+
+**Ça fonctionne avec Docker ?**
+Oui. JellyShim s'exécute entièrement dans le processus Jellyfin. Aucun conteneur supplémentaire ni service externe nécessaire.
+
+**Combien de bande passante l'optimisation d'images économise-t-elle ?**
+Typiquement **50–80 %** sur les données d'images. Par exemple, un poster JPEG de 500 Ko devient ~120 Ko en WebP qualité 80.
+
+**Est-ce que ça ralentit mon serveur ?**
+La pré-compression des assets s'exécute une fois au démarrage (et quotidiennement à 4h du matin). Le traitement d'images n'a lieu qu'à la première requête, puis les résultats sont servis depuis le cache disque.
+
+**Est-ce compatible avec un CDN ou un reverse proxy cache ?**
+Oui. JellyShim ajoute les en-têtes `Vary`, `Cache-Control` et `ETag` appropriés que les CDN et reverse proxies respectent.
+
+</details>

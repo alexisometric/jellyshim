@@ -214,7 +214,11 @@ public class AssetOptimizationMiddleware
                                  ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase) ||
                                  ext.Equals(".css", StringComparison.OrdinalIgnoreCase);
 
-            if (!isCompressible)
+            // Extensionless URLs (e.g. /JellyfinEnhanced/script) may still serve JS/CSS.
+            // Allow them through to capture+detect Content-Type from the upstream response.
+            var isExtensionless = string.IsNullOrEmpty(ext);
+
+            if (!isCompressible && !isExtensionless)
             {
                 SetResponseHeaders(context, config, () =>
                 {
@@ -436,16 +440,42 @@ public class AssetOptimizationMiddleware
                 context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
             }
 
+            // For extensionless URLs, detect the actual content type from the response
+            // to decide whether minification applies (e.g. /JellyfinEnhanced/script serves JS).
+            var effectiveExt = ext;
+            if (string.IsNullOrEmpty(effectiveExt))
+            {
+                var responseContentType = context.Response.ContentType ?? string.Empty;
+                if (responseContentType.Contains("javascript", StringComparison.OrdinalIgnoreCase))
+                {
+                    effectiveExt = ".js";
+                }
+                else if (responseContentType.Contains("text/css", StringComparison.OrdinalIgnoreCase))
+                {
+                    effectiveExt = ".css";
+                }
+                else
+                {
+                    // Not JS/CSS — forward the response unmodified
+                    captureStream.Position = 0;
+                    context.Response.Body = originalBody;
+                    await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+                    return;
+                }
+
+                _logger.LogInformation("[JellyShim] Extensionless plugin asset detected as {Ext}: {Path}", effectiveExt, path);
+            }
+
             // Minify JS or CSS
             byte[] optimized = rawBytes;
             if (config.EnableMinification)
             {
-                if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-                    ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase))
+                if (effectiveExt.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+                    effectiveExt.Equals(".mjs", StringComparison.OrdinalIgnoreCase))
                 {
                     optimized = _jsTransformer.MinifyBytes(rawBytes);
                 }
-                else if (ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+                else if (effectiveExt.Equals(".css", StringComparison.OrdinalIgnoreCase))
                 {
                     optimized = _cssTransformer.MinifyBytes(rawBytes);
                 }
@@ -486,7 +516,7 @@ public class AssetOptimizationMiddleware
 
             context.Response.Body = originalBody;
             context.Response.StatusCode = StatusCodes.Status200OK;
-            context.Response.ContentType = GetContentType(ext);
+            context.Response.ContentType = GetContentType(effectiveExt);
             context.Response.ContentLength = toServe.Length;
 
             if (contentEncoding is not null)

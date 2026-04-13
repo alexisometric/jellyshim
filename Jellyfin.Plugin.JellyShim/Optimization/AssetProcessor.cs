@@ -36,7 +36,6 @@ public class AssetProcessor
     private readonly PreCompressor _compressor;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
-    private readonly HtmlTransformer _htmlTransformer;
     private readonly ILogger<AssetProcessor> _logger;
 
     /// <summary>
@@ -47,14 +46,12 @@ public class AssetProcessor
         PreCompressor compressor,
         JsTransformer jsTransformer,
         CssTransformer cssTransformer,
-        HtmlTransformer htmlTransformer,
         ILogger<AssetProcessor> logger)
     {
         _cache = cache;
         _compressor = compressor;
         _jsTransformer = jsTransformer;
         _cssTransformer = cssTransformer;
-        _htmlTransformer = htmlTransformer;
         _logger = logger;
     }
 
@@ -107,12 +104,6 @@ public class AssetProcessor
                 if (config.EnableMinification)
                 {
                     processed = MinifyContent(processed, ext);
-                }
-
-                // Apply HTML transformations
-                if (HtmlExtensions.Contains(ext))
-                {
-                    processed = _htmlTransformer.TransformBytes(processed, config);
                 }
 
                 // Store the raw optimized version (for ETag computation and non-compressed serving)

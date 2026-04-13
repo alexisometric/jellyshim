@@ -18,11 +18,6 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the Brotli compression level (0-11). 11 is max compression.</summary>
     public int BrotliCompressionLevel { get; set; } = 11;
 
-    /// <summary>Gets or sets a value indicating whether File Transformation plugin integration is enabled.
-    /// Disabled by default — the HTML transformations (defer, modulepreload, preconnect) can
-    /// conflict with other plugins that modify index.html (Custom Tabs, JellyTweaks, etc.).</summary>
-    public bool EnableFileTransformationIntegration { get; set; } = false;
-
     // ── Cache Headers ───────────────────────────────────────────────
 
     /// <summary>Gets or sets a value indicating whether optimal cache headers are added.</summary>
@@ -45,24 +40,6 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>Gets or sets stale-while-revalidate for images (seconds). Default: 7 days.</summary>
     public int ImageStaleWhileRevalidate { get; set; } = 604800;
-
-    // ── HTML Optimization ───────────────────────────────────────────
-
-    /// <summary>Gets or sets a value indicating whether modulepreload link injection is enabled.</summary>
-    public bool EnablePreloadInjection { get; set; } = true;
-
-    /// <summary>Gets or sets a value indicating whether script defer optimization is enabled.</summary>
-    public bool EnableScriptDefer { get; set; } = true;
-
-    /// <summary>Gets or sets a value indicating whether SRI integrity attributes should be stripped.</summary>
-    public bool StripSriOnModification { get; set; } = true;
-
-    /// <summary>Gets or sets a value indicating whether preconnect hints are injected into HTML.</summary>
-    public bool EnablePreconnectHints { get; set; } = true;
-
-    /// <summary>Gets or sets the list of origins for preconnect hints (one per line).</summary>
-    public string PreconnectOrigins { get; set; } =
-        "https://fonts.googleapis.com\nhttps://fonts.gstatic.com\nhttps://cdn.jsdelivr.net\nhttps://www.gstatic.com";
 
     // ── Link Headers (103 Early Hints / Link) ──────────────────────
 

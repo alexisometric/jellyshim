@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Optimization;
-using Jellyfin.Plugin.JellyShim.Transformation;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
@@ -16,7 +15,6 @@ namespace Jellyfin.Plugin.JellyShim.Tasks;
 public class OptimizeAssetsTask : IScheduledTask
 {
     private readonly AssetProcessor _processor;
-    private readonly FileTransformationBridge _bridge;
     private readonly IServerConfigurationManager _configManager;
     private readonly ILogger<OptimizeAssetsTask> _logger;
 
@@ -25,12 +23,10 @@ public class OptimizeAssetsTask : IScheduledTask
     /// </summary>
     public OptimizeAssetsTask(
         AssetProcessor processor,
-        FileTransformationBridge bridge,
         IServerConfigurationManager configManager,
         ILogger<OptimizeAssetsTask> logger)
     {
         _processor = processor;
-        _bridge = bridge;
         _configManager = configManager;
         _logger = logger;
     }
@@ -64,12 +60,6 @@ public class OptimizeAssetsTask : IScheduledTask
         {
             _logger.LogWarning("[JellyShim] WebPath is not configured");
             return;
-        }
-
-        // Try to register with File Transformation plugin (if not already done)
-        if (!_bridge.IsRegistered)
-        {
-            _bridge.TryRegister(config);
         }
 
         progress.Report(5);

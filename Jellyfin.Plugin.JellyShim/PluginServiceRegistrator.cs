@@ -34,16 +34,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // Transformers
         serviceCollection.AddSingleton<JsTransformer>();
         serviceCollection.AddSingleton<CssTransformer>();
-        serviceCollection.AddSingleton<HtmlTransformer>();
 
         // Compression
         serviceCollection.AddSingleton<PreCompressor>();
 
         // Image processing (native — no external service)
         serviceCollection.AddSingleton<ImageProcessor>();
-
-        // File Transformation bridge
-        serviceCollection.AddSingleton<FileTransformationBridge>();
 
         // Orchestrator
         serviceCollection.AddSingleton<AssetProcessor>();

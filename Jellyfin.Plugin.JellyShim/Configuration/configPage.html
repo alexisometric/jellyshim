@@ -47,18 +47,6 @@
                         </div>
                     </div>
 
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableFileTransformationIntegration" type="checkbox" is="emby-checkbox" />
-                            <span>Enable File Transformation Integration</span>
-                        </label>
-                        <div class="fieldDescription">
-                            If the File Transformation plugin is installed, register runtime HTML transformations
-                            (defer, modulepreload, preconnect). <strong>Warning:</strong> may conflict with Custom Tabs,
-                            JellyTweaks, and other plugins that also modify index.html.
-                        </div>
-                    </div>
-
                     <!-- ═══ Cache Headers ═══ -->
                     <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
                         <h2 class="sectionTitle">Cache Headers</h2>
@@ -111,64 +99,6 @@
                         <input id="StaleWhileRevalidate" type="number" is="emby-input" min="0" value="86400" />
                         <div class="fieldDescription">
                             Serve stale content while revalidating in background. Default: 86400 (1 day).
-                        </div>
-                    </div>
-
-                    <!-- ═══ HTML Optimization ═══ -->
-                    <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
-                        <h2 class="sectionTitle">HTML Optimization</h2>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnablePreloadInjection" type="checkbox" is="emby-checkbox" checked />
-                            <span>Enable Modulepreload Injection</span>
-                        </label>
-                        <div class="fieldDescription">
-                            Inject &lt;link rel="modulepreload"&gt; hints in HTML for critical JS bundles.
-                        </div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableScriptDefer" type="checkbox" is="emby-checkbox" checked />
-                            <span>Enable Script Defer</span>
-                        </label>
-                        <div class="fieldDescription">
-                            Add defer attribute to non-critical script tags for improved page load.
-                        </div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="StripSriOnModification" type="checkbox" is="emby-checkbox" checked />
-                            <span>Strip SRI Integrity Attributes</span>
-                        </label>
-                        <div class="fieldDescription">
-                            Remove subresource integrity attributes from modified resources.
-                        </div>
-                    </div>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnablePreconnectHints" type="checkbox" is="emby-checkbox" checked />
-                            <span>Enable Preconnect Hints</span>
-                        </label>
-                        <div class="fieldDescription">
-                            Inject &lt;link rel="preconnect"&gt; tags into HTML for external origins.
-                        </div>
-                    </div>
-
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="PreconnectOrigins">
-                            Preconnect Origins (one per line)
-                        </label>
-                        <textarea id="PreconnectOrigins" is="emby-textarea" rows="4" style="width:100%">https://fonts.googleapis.com
-https://fonts.gstatic.com
-https://cdn.jsdelivr.net
-https://www.gstatic.com</textarea>
-                        <div class="fieldDescription">
-                            External origins for preconnect hints (e.g., https://fonts.googleapis.com).
                         </div>
                     </div>
 
@@ -263,7 +193,7 @@ https://www.gstatic.com</textarea>
                         <h2 class="sectionTitle">Image Optimization</h2>
                     </div>
 
-                    <div style="background: #2a2a2a; border-left: 4px solid #4caf50; padding: 12px 16px; margin-bottom: 1.5em; border-radius: 4px;">
+                    <div id="imageInfoBox" style="background: #2a2a2a; border-left: 4px solid #4caf50; padding: 12px 16px; margin-bottom: 1.5em; border-radius: 4px;">
                         <strong style="color: #4caf50;">&#10003; Built-in image processing</strong>
                         <p style="margin: 6px 0 0 0; color: #ccc;">
                             JellyShim processes images natively using ImageSharp + ffmpeg — <strong>no external service required</strong>.<br/>
@@ -327,7 +257,7 @@ https://www.gstatic.com</textarea>
                     <div class="sectionTitleContainer flex align-items-center" style="margin-top: 1.5em;">
                         <h3 class="sectionTitle" style="font-size: 1.1em;">Per-Type Image Settings</h3>
                     </div>
-                    <div class="fieldDescription" style="margin-bottom: 1em;">
+                    <div id="perTypeImageDesc" class="fieldDescription" style="margin-bottom: 1em;">
                         Configure max width (px) and quality (1–100) independently for each Jellyfin image type.
                         Images smaller than max width are not upscaled.
                     </div>
@@ -486,7 +416,7 @@ https://www.gstatic.com</textarea>
                             <span>Clear Cache</span>
                         </button>
                     </div>
-                    <div class="fieldDescription">
+                    <div id="cacheManagementDesc" class="fieldDescription">
                         Pre-compressed assets and optimized images are cached on disk.
                         Clearing the cache forces re-optimization on next access.
                         You can also trigger this from Dashboard → Scheduled Tasks → JellyShim: Clear Cache.
@@ -502,15 +432,162 @@ https://www.gstatic.com</textarea>
         </div>
 
         <script type="text/javascript">
+        // ══════════════════════════════════════════════════════════════
+        // i18n — Internationalization system
+        // Translations are loaded from /JellyShim/Localization/{lang}.
+        // To add a language: create Localization/{code}.json with the
+        // same keys as en.json. Missing keys fall back to English.
+        // ══════════════════════════════════════════════════════════════
+        var JellyShimI18n = {
+            currentLang: 'en',
+            translations: {},
+
+            /** Detect language from Jellyfin or browser. */
+            detectLanguage: function () {
+                try {
+                    var displayLang = (window.globalize && globalize.getCurrentLocale && globalize.getCurrentLocale())
+                        || document.documentElement.lang
+                        || navigator.language
+                        || navigator.userLanguage
+                        || 'en';
+                    this.currentLang = displayLang.substring(0, 2).toLowerCase();
+                } catch (e) {
+                    this.currentLang = 'en';
+                }
+                return this.currentLang;
+            },
+
+            /** Load a translation file from the API. Returns a Promise. */
+            loadTranslation: function (lang) {
+                var self = this;
+                return fetch(ApiClient.getUrl('JellyShim/Localization/' + lang))
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (data) { if (data) self.translations[lang] = data; })
+                    .catch(function () { /* language not available — will fall back */ });
+            },
+
+            /** Load English + detected language, then apply. Returns a Promise. */
+            init: function () {
+                var lang = this.detectLanguage();
+                var self = this;
+                var promises = [this.loadTranslation('en')];
+                if (lang !== 'en') {
+                    promises.push(this.loadTranslation(lang));
+                }
+                return Promise.all(promises).then(function () {
+                    self.applyTranslations();
+                });
+            },
+
+            /** Get a translated string. Falls back to English, then to the key. */
+            t: function (key) {
+                var strings = this.translations[this.currentLang];
+                if (strings && strings[key]) return strings[key];
+                var en = this.translations['en'];
+                if (en && en[key]) return en[key];
+                return key;
+            },
+
+            /** Apply translations to the entire config page. */
+            applyTranslations: function () {
+                var self = this;
+
+                // Section titles (h2 and h3)
+                document.querySelectorAll('#JellyShimConfigForm h2.sectionTitle, #JellyShimConfigForm h3.sectionTitle').forEach(function (el) {
+                    var key = 'section.' + el.textContent.trim();
+                    var translated = self.t(key);
+                    if (translated !== key) el.textContent = translated;
+                });
+
+                // Checkbox labels and descriptions
+                JellyShimConfig.checkboxes.forEach(function (id) {
+                    var input = document.getElementById(id);
+                    if (!input) return;
+                    var span = input.parentElement.querySelector('span');
+                    if (span) span.textContent = self.t('label.' + id);
+                    var container = input.closest('.checkboxContainer');
+                    if (!container) return;
+                    var desc = container.querySelector('.fieldDescription');
+                    if (desc) desc.textContent = self.t('desc.' + id);
+                });
+
+                // Number, text, and textarea labels and descriptions
+                var allInputIds = JellyShimConfig.numbers
+                    .concat(JellyShimConfig.texts)
+                    .concat(JellyShimConfig.textareas);
+                allInputIds.forEach(function (id) {
+                    var input = document.getElementById(id);
+                    if (!input) return;
+                    var container = input.closest('.inputContainer');
+                    if (!container) return;
+                    var label = container.querySelector('label');
+                    var labelKey = 'label.' + id;
+                    if (label && self.t(labelKey) !== labelKey) label.textContent = self.t(labelKey);
+                    var desc = container.querySelector('.fieldDescription');
+                    var descKey = 'desc.' + id;
+                    if (desc && self.t(descKey) !== descKey) desc.textContent = self.t(descKey);
+                });
+
+                // Image info box
+                var infoBox = document.getElementById('imageInfoBox');
+                if (infoBox) {
+                    var strong = infoBox.querySelector('strong');
+                    if (strong) strong.textContent = self.t('info.imageBuiltinTitle');
+                    var p = infoBox.querySelector('p');
+                    if (p) p.innerHTML = self.t('info.imageBuiltinText');
+                }
+
+                // Per-type image settings description
+                var perTypeDesc = document.getElementById('perTypeImageDesc');
+                if (perTypeDesc) perTypeDesc.textContent = self.t('desc.perTypeImage');
+
+                // Table headers
+                var headers = document.querySelectorAll('#JellyShimConfigForm table th');
+                if (headers.length >= 3) {
+                    headers[0].textContent = self.t('table.imageType');
+                    headers[1].textContent = self.t('table.maxWidth');
+                    headers[2].textContent = self.t('table.quality');
+                }
+
+                // Image type descriptions (find via MaxWidth input → row → .fieldDescription)
+                ['Primary', 'Backdrop', 'Art', 'Banner', 'Logo', 'Thumb',
+                 'Screenshot', 'Chapter', 'Profile', 'Disc', 'Box', 'BoxRear', 'DefaultImage'
+                ].forEach(function (type) {
+                    var input = document.getElementById(type + 'MaxWidth');
+                    if (!input) return;
+                    var row = input.closest('tr');
+                    if (!row) return;
+                    var desc = row.querySelector('.fieldDescription');
+                    if (desc) desc.textContent = self.t('imgType.' + type);
+                });
+
+                // Cache management description
+                var cacheDesc = document.getElementById('cacheManagementDesc');
+                if (cacheDesc) cacheDesc.textContent = self.t('desc.cacheManagement');
+
+                // Buttons
+                var saveBtn = document.querySelector('.button-submit span');
+                if (saveBtn) saveBtn.textContent = self.t('btn.save');
+                var clearCacheSpan = document.querySelector('#btnClearCache span:last-child');
+                if (clearCacheSpan) clearCacheSpan.textContent = self.t('btn.clearCache');
+
+                // Cache stats loading text
+                var cacheStats = document.getElementById('cacheStats');
+                if (cacheStats && cacheStats.textContent.indexOf('Loading') !== -1) {
+                    cacheStats.textContent = self.t('cache.loading');
+                }
+            }
+        };
+
+        // ══════════════════════════════════════════════════════════════
+        // Plugin configuration
+        // ══════════════════════════════════════════════════════════════
         var JellyShimConfig = {
             pluginUniqueId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
             clearCacheTaskKey: 'JellyShimClearCache',
 
-            // All config field IDs and their types
             checkboxes: [
                 'EnableMinification', 'EnableCompression', 'EnableCacheHeaders',
-                'EnablePreloadInjection', 'EnableScriptDefer', 'StripSriOnModification',
-                'EnableFileTransformationIntegration', 'EnablePreconnectHints',
                 'EnableFontPreloadHeaders', 'EnableJsModulepreloadHeaders',
                 'EnableCrossOriginResourcePolicy', 'EnableSecurityHeaders',
                 'EnableImageOptimization', 'EnableImageCache'
@@ -539,12 +616,16 @@ https://www.gstatic.com</textarea>
                 'ImageOutputFormat'
             ],
             textareas: [
-                'PreconnectOrigins', 'PluginAssetPaths'
+                'PluginAssetPaths'
             ]
         };
 
+        // ── Page load: load config + apply translations ──
         document.querySelector('#JellyShimConfigPage')
             .addEventListener('pageshow', function () {
+                // Load translations (async — applies when ready)
+                JellyShimI18n.init();
+
                 Dashboard.showLoadingMsg();
                 ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
                     JellyShimConfig.checkboxes.forEach(function (id) {
@@ -561,8 +642,11 @@ https://www.gstatic.com</textarea>
                     });
                     Dashboard.hideLoadingMsg();
                 });
+
+                loadCacheStats();
             });
 
+        // ── Save config ──
         document.querySelector('#JellyShimConfigForm')
             .addEventListener('submit', function (e) {
                 e.preventDefault();
@@ -598,14 +682,14 @@ https://www.gstatic.com</textarea>
 
         function loadCacheStats() {
             var el = document.querySelector('#cacheStats');
+            el.textContent = JellyShimI18n.t('cache.loading');
             ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
-                // Use scheduled tasks endpoint to find our task and its last run info
                 ApiClient.getScheduledTasks().then(function (tasks) {
                     var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
                     if (task && task.LastExecutionResult) {
-                        el.textContent = 'Last cleared: ' + new Date(task.LastExecutionResult.EndTimeUtc).toLocaleString();
+                        el.textContent = JellyShimI18n.t('cache.lastCleared') + new Date(task.LastExecutionResult.EndTimeUtc).toLocaleString();
                     } else {
-                        el.textContent = 'Cache has never been cleared.';
+                        el.textContent = JellyShimI18n.t('cache.neverCleared');
                     }
                 }).catch(function () {
                     el.textContent = '';
@@ -618,35 +702,30 @@ https://www.gstatic.com</textarea>
         document.querySelector('#btnClearCache').addEventListener('click', function () {
             var btn = this;
             btn.disabled = true;
-            btn.querySelector('span:last-child').textContent = 'Clearing…';
+            btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearing');
 
-            // Find the task ID and trigger it
             ApiClient.getScheduledTasks().then(function (tasks) {
                 var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
                 if (!task) {
-                    Dashboard.alert('Cache clear task not found. Please restart Jellyfin.');
+                    Dashboard.alert(JellyShimI18n.t('cache.taskNotFound'));
                     btn.disabled = false;
-                    btn.querySelector('span:last-child').textContent = 'Clear Cache';
+                    btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
                     return;
                 }
                 ApiClient.startScheduledTask(task.Id).then(function () {
                     setTimeout(function () {
                         btn.disabled = false;
-                        btn.querySelector('span:last-child').textContent = 'Clear Cache';
-                        Dashboard.alert('Cache cleared successfully.');
+                        btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
+                        Dashboard.alert(JellyShimI18n.t('cache.cleared'));
                         loadCacheStats();
                     }, 1500);
                 }).catch(function () {
                     btn.disabled = false;
-                    btn.querySelector('span:last-child').textContent = 'Clear Cache';
-                    Dashboard.alert('Failed to clear cache.');
+                    btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
+                    Dashboard.alert(JellyShimI18n.t('cache.clearFailed'));
                 });
             });
         });
-
-        // Load cache stats on page show
-        document.querySelector('#JellyShimConfigPage')
-            .addEventListener('pageshow', function () { loadCacheStats(); });
     </script>
     </div>
 </body>
