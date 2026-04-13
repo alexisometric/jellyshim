@@ -84,6 +84,14 @@ public class AssetProcessor
             }
 
             var relativePath = Path.GetRelativePath(webPath, filePath).Replace('\\', '/');
+
+            // Skip files that File Transformation plugins need to patch at runtime
+            if (IsFileTransformationBypassed(relativePath, config))
+            {
+                stats.Skipped++;
+                continue;
+            }
+
             var sourceLastModified = File.GetLastWriteTimeUtc(filePath);
 
             // Skip if cache is already valid
@@ -159,6 +167,27 @@ public class AssetProcessor
         }
 
         return content;
+    }
+
+    private static bool IsFileTransformationBypassed(string relativePath, PluginConfiguration config)
+    {
+        if (string.IsNullOrWhiteSpace(config.FileTransformationBypassPatterns))
+        {
+            return false;
+        }
+
+        var patterns = config.FileTransformationBypassPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var fileName = Path.GetFileName(relativePath);
+        foreach (var pattern in patterns)
+        {
+            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+            if (System.Text.RegularExpressions.Regex.IsMatch(fileName, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

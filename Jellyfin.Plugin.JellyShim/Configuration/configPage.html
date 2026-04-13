@@ -401,6 +401,19 @@
                         </div>
                     </div>
 
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="FileTransformationBypassPatterns">
+                            File Transformation Bypass Patterns (one per line)
+                        </label>
+                        <textarea id="FileTransformationBypassPatterns" is="emby-textarea" rows="3" style="width:100%">home-html.*.chunk.js
+main.*.bundle.js</textarea>
+                        <div class="fieldDescription">
+                            Filename patterns (wildcard * supported) for web assets that must pass through to
+                            File Transformation plugins (Custom Tabs, JellyfinEnhanced, etc.). These files
+                            will NOT be served from JellyShim's cache so that runtime patches can be applied.
+                        </div>
+                    </div>
+
                     <!-- ═══ Cache Management ═══ -->
                     <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
                         <h2 class="sectionTitle">Cache Management</h2>
@@ -616,7 +629,8 @@
                 'ImageOutputFormat'
             ],
             textareas: [
-                'PluginAssetPaths'
+                'PluginAssetPaths',
+                'FileTransformationBypassPatterns'
             ]
         };
 

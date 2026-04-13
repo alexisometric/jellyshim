@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Configuration;
@@ -51,12 +53,22 @@ public class AssetOptimizationMiddleware
     private string[]? _cachedPluginPaths;
     private string? _cachedPluginPathsRaw;
 
+    // Parsed file transformation bypass patterns (cached)
+    private string[]? _cachedBypassPatterns;
+    private string? _cachedBypassPatternsRaw;
+
     private readonly RequestDelegate _next;
     private readonly DiskCacheManager _cache;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
     private readonly ILogger<AssetOptimizationMiddleware> _logger;
     private static int _requestCount;
+
+    /// <summary>
+    /// Per-key locks to prevent duplicate processing when concurrent requests
+    /// hit the same uncached plugin asset simultaneously.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _inflightLocks = new();
 
     /// <summary>
     /// Maximum response body size to capture for on-the-fly optimization (2 MB).
@@ -280,8 +292,45 @@ public class AssetOptimizationMiddleware
                 return;
             }
 
-            // Cache miss — capture the upstream response, minify, compress, cache, serve
-            await CaptureAndOptimizePluginAsset(context, config, ext, path, pluginCacheKey, pluginEncoding, pluginContentEncoding).ConfigureAwait(false);
+            // Cache miss — use per-key lock to prevent duplicate processing of concurrent requests
+            var keyLock = _inflightLocks.GetOrAdd(pluginCacheKey, _ => new SemaphoreSlim(1, 1));
+            await keyLock.WaitAsync(context.RequestAborted).ConfigureAwait(false);
+            try
+            {
+                // Re-check cache after acquiring lock (another request may have populated it)
+                pluginCachedPath = null;
+                if (pluginEncoding is not null &&
+                    _cache.TryGetCachedFile(pluginCacheKey, pluginEncoding, out var compPath2))
+                {
+                    pluginCachedPath = compPath2;
+                }
+
+                if (pluginCachedPath is null && _cache.TryGetCachedFile(pluginCacheKey, "raw", out var rawPath2))
+                {
+                    pluginCachedPath = rawPath2;
+                    pluginContentEncoding = null;
+                }
+
+                if (pluginCachedPath is not null)
+                {
+                    var serveExt2 = ext;
+                    if (string.IsNullOrEmpty(serveExt2) && _cache.TryGetCachedFile(pluginCacheKey, "meta", out var metaPath2))
+                    {
+                        serveExt2 = File.ReadAllText(metaPath2).Trim();
+                    }
+
+                    await ServePluginCachedFile(context, config, pluginCachedPath, serveExt2, pluginContentEncoding, path).ConfigureAwait(false);
+                    return;
+                }
+
+                // Still a cache miss — we're the first. Capture, optimize, cache, serve.
+                await CaptureAndOptimizePluginAsset(context, config, ext, path, pluginCacheKey, pluginEncoding, pluginContentEncoding).ConfigureAwait(false);
+            }
+            finally
+            {
+                keyLock.Release();
+            }
+
             return;
         }
 
@@ -309,6 +358,23 @@ public class AssetOptimizationMiddleware
                 encoding = "gz";
                 contentEncoding = "gzip";
             }
+        }
+
+        // File Transformation bypass: certain JS chunk files are patched by downstream
+        // plugins (Custom Tabs, JellyfinEnhanced, etc.) via File Transformation.
+        // We must NOT serve these from cache — pass through so patches can be applied.
+        if (IsFileTransformationBypassed(relativePath, config))
+        {
+            _logger.LogDebug("[JellyShim] File Transformation bypass: {Path}", path);
+            SetResponseHeaders(context, config, () =>
+            {
+                if (config.EnableCacheHeaders)
+                {
+                    SetPassthroughCacheHeaders(context.Response, path, false, config);
+                }
+            });
+            await _next(context).ConfigureAwait(false);
+            return;
         }
 
         // Try to serve from cache
@@ -723,6 +789,46 @@ public class AssetOptimizationMiddleware
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Checks if a web asset filename matches any File Transformation bypass pattern.
+    /// These files must pass through to downstream middleware so that plugins like Custom Tabs
+    /// can apply their runtime patches before the response reaches the client.
+    /// Patterns support * as a wildcard.
+    /// </summary>
+    private bool IsFileTransformationBypassed(string relativePath, PluginConfiguration config)
+    {
+        if (string.IsNullOrWhiteSpace(config.FileTransformationBypassPatterns))
+        {
+            return false;
+        }
+
+        if (_cachedBypassPatternsRaw != config.FileTransformationBypassPatterns)
+        {
+            _cachedBypassPatterns = config.FileTransformationBypassPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            _cachedBypassPatternsRaw = config.FileTransformationBypassPatterns;
+        }
+
+        var fileName = Path.GetFileName(relativePath);
+        foreach (var pattern in _cachedBypassPatterns!)
+        {
+            if (WildcardMatch(fileName, pattern))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Simple wildcard matching: * matches any sequence of characters.
+    /// </summary>
+    private static bool WildcardMatch(string input, string pattern)
+    {
+        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
+        return System.Text.RegularExpressions.Regex.IsMatch(input, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     }
 
     /// <summary>

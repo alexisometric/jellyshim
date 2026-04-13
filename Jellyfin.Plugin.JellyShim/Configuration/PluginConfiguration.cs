@@ -170,4 +170,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string PluginAssetPaths { get; set; } =
         "/JellyTweaks/\n/HomeScreen/\n/MediaBarEnhanced/\n/Plugins/Announcements/\n/JellyfinEnhanced/\n/JavaScriptInjector/";
+
+    // ── File Transformation Compatibility ───────────────────────────
+
+    /// <summary>
+    /// Gets or sets filename patterns (one per line, supports * wildcard) for web assets
+    /// that must NOT be served from JellyShim's cache.  These files are passed through
+    /// to downstream middleware so that File Transformation plugins (Custom Tabs,
+    /// JellyfinEnhanced, etc.) can apply their patches.
+    /// </summary>
+    public string FileTransformationBypassPatterns { get; set; } =
+        "home-html.*.chunk.js\nmain.*.bundle.js";
 }
