@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using NUglify;
 
@@ -6,9 +7,16 @@ namespace Jellyfin.Plugin.JellyShim.Transformation;
 
 /// <summary>
 /// Applies additional minification to CSS files using NUglify.
+/// Also injects font-display:swap into @font-face rules that lack it,
+/// preventing FOIT (Flash of Invisible Text) during font loading.
 /// </summary>
 public class CssTransformer
 {
+    // Matches @font-face blocks that do NOT already contain font-display
+    private static readonly Regex FontFaceWithoutDisplayRegex = new(
+        @"(@font-face\s*\{)((?:(?!font-display)[^}])*)\}",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
     private readonly ILogger<CssTransformer> _logger;
 
     /// <summary>
@@ -47,7 +55,38 @@ public class CssTransformer
                 input.Length, result.Code.Length, saved);
         }
 
-        return result.Code;
+        // Inject font-display:swap into @font-face rules that lack it
+        var output = InjectFontDisplaySwap(result.Code);
+
+        return output;
+    }
+
+    /// <summary>
+    /// Injects <c>font-display:swap</c> into every <c>@font-face</c> block that doesn't already have it.
+    /// This prevents FOIT (Flash of Invisible Text) — text renders immediately with a fallback font,
+    /// then swaps in the custom font once loaded.
+    /// </summary>
+    public string InjectFontDisplaySwap(string css)
+    {
+        if (string.IsNullOrEmpty(css) || !css.Contains("@font-face", StringComparison.OrdinalIgnoreCase))
+        {
+            return css;
+        }
+
+        var injected = FontFaceWithoutDisplayRegex.Replace(css, match =>
+        {
+            var prefix = match.Groups[1].Value;  // "@font-face{"
+            var body = match.Groups[2].Value;     // properties inside
+            return $"{prefix}{body}font-display:swap}}";
+        });
+
+        if (injected != css)
+        {
+            var count = FontFaceWithoutDisplayRegex.Matches(css).Count;
+            _logger.LogDebug("[JellyShim] Injected font-display:swap into {Count} @font-face rule(s)", count);
+        }
+
+        return injected;
     }
 
     /// <summary>

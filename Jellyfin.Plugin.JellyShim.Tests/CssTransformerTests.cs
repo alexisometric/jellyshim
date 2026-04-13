@@ -140,4 +140,90 @@ public class CssTransformerTests
         var result = _transformer.Minify(input);
         Assert.NotNull(result);
     }
+
+    // ── font-display:swap injection tests ──────────────────────────
+
+    [Fact]
+    public void InjectFontDisplaySwap_AddsToPureFontFace()
+    {
+        var input = "@font-face{font-family:MyFont;src:url(font.woff2)}";
+        var result = _transformer.InjectFontDisplaySwap(input);
+        Assert.Contains("font-display:swap", result);
+    }
+
+    [Fact]
+    public void InjectFontDisplaySwap_SkipsWhenAlreadyPresent()
+    {
+        var input = "@font-face{font-family:MyFont;src:url(font.woff2);font-display:swap}";
+        var result = _transformer.InjectFontDisplaySwap(input);
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void InjectFontDisplaySwap_HandlesMultipleFontFaces()
+    {
+        var input = "@font-face{font-family:A;src:url(a.woff2)}@font-face{font-family:B;src:url(b.woff2)}";
+        var result = _transformer.InjectFontDisplaySwap(input);
+        Assert.Equal(2, CountOccurrences(result, "font-display:swap"));
+    }
+
+    [Fact]
+    public void InjectFontDisplaySwap_MixedPresentAndMissing()
+    {
+        var input = "@font-face{font-family:A;src:url(a.woff2);font-display:swap}@font-face{font-family:B;src:url(b.woff2)}";
+        var result = _transformer.InjectFontDisplaySwap(input);
+        Assert.Equal(2, CountOccurrences(result, "font-display:swap"));
+    }
+
+    [Fact]
+    public void InjectFontDisplaySwap_NoCssInput_ReturnsUnchanged()
+    {
+        var input = "body{margin:0}";
+        var result = _transformer.InjectFontDisplaySwap(input);
+        Assert.Equal(input, result);
+    }
+
+    [Fact]
+    public void InjectFontDisplaySwap_EmptyInput_ReturnsEmpty()
+    {
+        Assert.Equal("", _transformer.InjectFontDisplaySwap(""));
+    }
+
+    [Fact]
+    public void Minify_InjectsFontDisplaySwap_EndToEnd()
+    {
+        var input = """
+            @font-face {
+                font-family: "TestFont";
+                src: url("test.woff2") format("woff2");
+                font-weight: 400;
+            }
+            body { margin: 0; }
+            """;
+
+        var result = _transformer.Minify(input);
+
+        Assert.Contains("font-display:swap", result);
+        Assert.Contains("body", result);
+    }
+
+    [Fact]
+    public void MinifyBytes_InjectsFontDisplaySwap()
+    {
+        var input = "@font-face { font-family: X; src: url(x.woff2); } .a { color: red; }";
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var result = Encoding.UTF8.GetString(_transformer.MinifyBytes(bytes));
+        Assert.Contains("font-display:swap", result);
+    }
+
+    private static int CountOccurrences(string text, string search)
+    {
+        int count = 0, idx = 0;
+        while ((idx = text.IndexOf(search, idx, StringComparison.Ordinal)) != -1)
+        {
+            count++;
+            idx += search.Length;
+        }
+        return count;
+    }
 }

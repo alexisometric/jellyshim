@@ -269,7 +269,14 @@ public class AssetOptimizationMiddleware
 
             if (pluginCachedPath is not null)
             {
-                await ServePluginCachedFile(context, config, pluginCachedPath, ext, pluginContentEncoding, path).ConfigureAwait(false);
+                // For extensionless URLs, retrieve the detected content type from cache metadata
+                var serveExt = ext;
+                if (string.IsNullOrEmpty(serveExt) && _cache.TryGetCachedFile(pluginCacheKey, "meta", out var metaPath))
+                {
+                    serveExt = File.ReadAllText(metaPath).Trim();
+                }
+
+                await ServePluginCachedFile(context, config, pluginCachedPath, serveExt, pluginContentEncoding, path).ConfigureAwait(false);
                 return;
             }
 
@@ -454,9 +461,13 @@ public class AssetOptimizationMiddleware
                 {
                     effectiveExt = ".css";
                 }
+                else if (responseContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+                {
+                    effectiveExt = ".json";
+                }
                 else
                 {
-                    // Not JS/CSS — forward the response unmodified
+                    // Not JS/CSS/JSON — forward the response unmodified
                     captureStream.Position = 0;
                     context.Response.Body = originalBody;
                     await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
@@ -466,7 +477,7 @@ public class AssetOptimizationMiddleware
                 _logger.LogInformation("[JellyShim] Extensionless plugin asset detected as {Ext}: {Path}", effectiveExt, path);
             }
 
-            // Minify JS or CSS
+            // Minify JS or CSS (JSON is compressed but not minified — already compact from serializers)
             byte[] optimized = rawBytes;
             if (config.EnableMinification)
             {
@@ -483,6 +494,12 @@ public class AssetOptimizationMiddleware
 
             // Cache the raw minified version
             _cache.Store(cacheKey, "raw", optimized);
+
+            // For extensionless URLs, store the detected content type so cache hits serve correctly
+            if (string.IsNullOrEmpty(ext))
+            {
+                _cache.Store(cacheKey, "meta", Encoding.UTF8.GetBytes(effectiveExt));
+            }
 
             // Compress and cache both variants
             if (config.EnableCompression)
