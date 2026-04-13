@@ -13,6 +13,13 @@ namespace Jellyfin.Plugin.JellyShim.Middleware;
 /// </summary>
 public class JellyShimApplicationBuilderFactory : IApplicationBuilderFactory
 {
+    /// <summary>
+    /// Set to <c>true</c> once this factory has injected middleware,
+    /// so <see cref="JellyShimStartupFilter"/> can skip its own registration
+    /// and avoid duplicating the pipeline.
+    /// </summary>
+    internal static bool MiddlewareInjected { get; private set; }
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<JellyShimApplicationBuilderFactory> _logger;
 
@@ -38,6 +45,7 @@ public class JellyShimApplicationBuilderFactory : IApplicationBuilderFactory
         // Asset optimization (serves /web/* from cache, adds headers to plugin paths)
         builder.UseMiddleware<AssetOptimizationMiddleware>();
 
+        MiddlewareInjected = true;
         _logger.LogInformation("[JellyShim] Middleware injection complete");
 
         return builder;

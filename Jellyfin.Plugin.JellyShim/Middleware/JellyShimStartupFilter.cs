@@ -27,13 +27,20 @@ public class JellyShimStartupFilter : IStartupFilter
 
         return app =>
         {
-            // Image optimization first (intercepts /Items/*/Images/*)
-            app.UseMiddleware<ImageOptimizationMiddleware>();
+            if (JellyShimApplicationBuilderFactory.MiddlewareInjected)
+            {
+                _logger.LogInformation("[JellyShim] IStartupFilter skipped — middleware already injected by ApplicationBuilderFactory");
+            }
+            else
+            {
+                // Image optimization first (intercepts /Items/*/Images/*)
+                app.UseMiddleware<ImageOptimizationMiddleware>();
 
-            // Asset optimization (serves /web/* from cache, adds headers to plugin paths)
-            app.UseMiddleware<AssetOptimizationMiddleware>();
+                // Asset optimization (serves /web/* from cache, adds headers to plugin paths)
+                app.UseMiddleware<AssetOptimizationMiddleware>();
 
-            _logger.LogInformation("[JellyShim] Middleware registered via IStartupFilter (before Jellyfin pipeline)");
+                _logger.LogInformation("[JellyShim] Middleware registered via IStartupFilter (before Jellyfin pipeline)");
+            }
 
             // Continue with the rest of the pipeline (Jellyfin's own middleware)
             next(app);
