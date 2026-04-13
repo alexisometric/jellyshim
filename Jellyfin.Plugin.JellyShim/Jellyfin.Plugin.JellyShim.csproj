@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
-    <Version>1.0.7.0</Version>
+    <Version>1.0.8.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

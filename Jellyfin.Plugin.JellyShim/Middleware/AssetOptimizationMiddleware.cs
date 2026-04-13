@@ -402,9 +402,17 @@ public class AssetOptimizationMiddleware
         using var captureStream = new MemoryStream();
         context.Response.Body = captureStream;
 
+        // Strip Accept-Encoding so upstream middleware doesn't compress the response.
+        // We need raw bytes for minification; we'll compress ourselves afterwards.
+        var savedAcceptEncoding = context.Request.Headers.AcceptEncoding;
+        context.Request.Headers.AcceptEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+
         try
         {
             await _next(context).ConfigureAwait(false);
+
+            // Restore Accept-Encoding (needed for our own encoding negotiation above)
+            context.Request.Headers.AcceptEncoding = savedAcceptEncoding;
 
             if (context.Response.StatusCode != StatusCodes.Status200OK ||
                 captureStream.Length == 0 ||
@@ -418,6 +426,15 @@ public class AssetOptimizationMiddleware
             }
 
             var rawBytes = captureStream.ToArray();
+
+            // Safety net: if upstream still compressed despite removing Accept-Encoding,
+            // decompress before minification to avoid corrupting the content.
+            var upstreamContentEncoding = context.Response.Headers.ContentEncoding.ToString();
+            if (!string.IsNullOrEmpty(upstreamContentEncoding))
+            {
+                rawBytes = DecompressUpstreamResponse(rawBytes, upstreamContentEncoding);
+                context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+            }
 
             // Minify JS or CSS
             byte[] optimized = rawBytes;
@@ -563,6 +580,44 @@ public class AssetOptimizationMiddleware
 
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
         await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Decompresses a response body that was compressed by upstream middleware.
+    /// Returns the original bytes if the encoding is unknown or decompression fails.
+    /// </summary>
+    private byte[] DecompressUpstreamResponse(byte[] data, string contentEncoding)
+    {
+        try
+        {
+            if (contentEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+            {
+                using var input = new MemoryStream(data);
+                using var brotli = new BrotliStream(input, CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                brotli.CopyTo(output);
+                _logger.LogDebug("[JellyShim] Decompressed upstream Brotli response: {Compressed}B → {Raw}B", data.Length, output.Length);
+                return output.ToArray();
+            }
+
+            if (contentEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+            {
+                using var input = new MemoryStream(data);
+                using var gzip = new GZipStream(input, CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                gzip.CopyTo(output);
+                _logger.LogDebug("[JellyShim] Decompressed upstream Gzip response: {Compressed}B → {Raw}B", data.Length, output.Length);
+                return output.ToArray();
+            }
+
+            _logger.LogWarning("[JellyShim] Unknown upstream Content-Encoding: {Encoding}", contentEncoding);
+            return data;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[JellyShim] Failed to decompress upstream response (Content-Encoding: {Encoding})", contentEncoding);
+            return data;
+        }
     }
 
     /// <summary>

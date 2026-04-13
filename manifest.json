@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.0.8.0",
+        "changelog": "Fix: plugin asset corruption — strip Accept-Encoding before capturing upstream response so minification receives raw text instead of compressed binary. Adds Brotli/Gzip decompression fallback for edge cases. Fixes 'illegal character U+001B' errors on all third-party plugin scripts.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.0.8/jellyshim-v1.0.8.zip",
+        "checksum": "743cf4a3fa5623bba9e082b95ca405e1",
+        "timestamp": "2026-04-13T12:00:00Z"
+      },
+      {
         "version": "1.0.7.0",
         "changelog": "On-the-fly plugin asset optimization: third-party plugin JS/CSS (MediaBarEnhanced, JellyfinEnhanced, etc.) are now captured, minified, compressed (Brotli/Gzip), and cached on disk. New Clear Cache button in config page and scheduled task. ETag/304 support for cached plugin assets.",
         "targetAbi": "10.11.0.0",
