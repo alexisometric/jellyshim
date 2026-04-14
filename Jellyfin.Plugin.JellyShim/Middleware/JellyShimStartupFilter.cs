@@ -5,8 +5,16 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
 /// <summary>
-/// Injects JellyShim middlewares into the Jellyfin HTTP pipeline via <see cref="IStartupFilter"/>.
-/// This wraps the entire pipeline so our middleware runs first on every request.
+/// Fallback middleware injection via <see cref="IStartupFilter"/>.
+///
+/// <para>This is a safety net in case <see cref="JellyShimApplicationBuilderFactory"/>
+/// was not consumed by the host. Before adding middleware, it checks
+/// <see cref="JellyShimApplicationBuilderFactory.MiddlewareInjected"/> to avoid
+/// registering the same middleware twice, which would cause duplicate processing.</para>
+///
+/// <para>In practice, on Jellyfin 10.11, the ApplicationBuilderFactory path always
+/// wins, so this filter logs "skipped" and does nothing. It's kept as insurance
+/// for future Jellyfin versions that might change the hosting model.</para>
 /// </summary>
 public class JellyShimStartupFilter : IStartupFilter
 {

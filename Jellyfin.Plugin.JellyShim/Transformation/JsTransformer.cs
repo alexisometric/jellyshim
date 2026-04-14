@@ -5,7 +5,16 @@ using NUglify;
 namespace Jellyfin.Plugin.JellyShim.Transformation;
 
 /// <summary>
-/// Applies additional minification to JavaScript files using NUglify.
+/// Applies JavaScript minification using the NUglify library.
+///
+/// <para><b>Already-minified detection:</b> Files with a very low whitespace ratio
+/// (heuristic for bundler-minified code) are skipped to avoid wasting CPU on
+/// content that can't be compressed further.</para>
+///
+/// <para><b>Error handling:</b> NUglify often produces valid (smaller) output even
+/// when it reports non-fatal errors (e.g. strict-mode duplicate properties,
+/// unusual ES2020+ syntax). If the output is smaller than the input, it's used
+/// despite warnings. Only when the output is empty or larger is the original returned.</para>
 /// </summary>
 public class JsTransformer
 {

@@ -7,15 +7,45 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Cache;
 
 /// <summary>
-/// Manages a disk cache for pre-optimized and pre-compressed assets.
-/// Cache lives under {CachePath}/jellyshim/ and never modifies original files.
+/// Manages a disk-based cache for pre-optimized and pre-compressed assets.
+///
+/// <para><b>Cache structure:</b></para>
+/// <code>
+/// {CachePath}/jellyshim/
+///   raw/    ← minified but uncompressed (used for ETag computation + fallback serving)
+///   br/     ← Brotli-compressed variant
+///   gz/     ← Gzip-compressed variant
+///   meta/   ← metadata (e.g. detected Content-Type for extensionless plugin URLs)
+///   img/    ← processed images (resized/re-encoded by ImageProcessor)
+/// </code>
+///
+/// <para>Each sub-directory mirrors the relative path of the original asset.
+/// For example, <c>/web/main.abcdef12.bundle.js</c> is stored as
+/// <c>{cache}/br/main.abcdef12.bundle.js</c> for the Brotli variant.</para>
+///
+/// <para><b>ETag caching:</b> SHA-256 hashes are computed from the raw file contents
+/// and memoized in a <see cref="ConcurrentDictionary{TKey, TValue}"/>. The memo
+/// is invalidated when the file's last-write timestamp changes, so updates to cached
+/// files are reflected immediately without restarting the server.</para>
+///
+/// <para><b>Path traversal protection:</b> All relative paths are validated to ensure
+/// they don't contain <c>..</c> segments and that the resolved path stays under the
+/// cache root directory. This prevents a malicious request path from reading/writing
+/// files elsewhere on the filesystem.</para>
+///
+/// <para><b>Cache never modifies original files</b> — it only reads from Jellyfin's
+/// web root and stores copies under its own directory.</para>
 /// </summary>
 public class DiskCacheManager
 {
+    /// <summary>Absolute path to the cache root directory ({CachePath}/jellyshim).</summary>
     private readonly string _cacheRoot;
     private readonly ILogger<DiskCacheManager> _logger;
 
-    // In-memory ETag cache: path → (lastWriteUtc, etag)
+    /// <summary>
+    /// In-memory ETag cache: maps file path → (lastWriteUtc, etagString).
+    /// Avoids re-hashing unchanged files on every conditional request (If-None-Match).
+    /// </summary>
     private readonly ConcurrentDictionary<string, (DateTime LastWrite, string ETag)> _etagCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -34,8 +64,12 @@ public class DiskCacheManager
     public string CacheRoot => _cacheRoot;
 
     /// <summary>
-    /// Gets the full path to a cached file for a given relative path and encoding.
-    /// Path traversal is prevented by rejecting segments containing "..".
+    /// Gets the full filesystem path to a cached file for a given relative path and encoding variant.
+    /// The encoding parameter selects the sub-directory: "raw", "br", "gz", "meta", or "img".
+    ///
+    /// <para><b>Security:</b> Rejects paths containing ".." segments and validates that the
+    /// resolved absolute path stays under <see cref="CacheRoot"/> to prevent path traversal
+    /// attacks from crafted request URLs.</para>
     /// </summary>
     public string GetCachedFilePath(string relativePath, string encoding)
     {
@@ -60,7 +94,12 @@ public class DiskCacheManager
     }
 
     /// <summary>
-    /// Checks whether a cached version exists and is still valid (source hasn't been modified since cache was built).
+    /// Checks whether a cached version exists and is still valid.
+    /// Compares the cache file's last-write timestamp against the source file's timestamp.
+    /// Returns <c>false</c> if the source has been modified since the cache was built,
+    /// which triggers re-optimization on the next request.
+    /// Used by <see cref="Optimization.AssetProcessor"/> during scheduled pre-optimization
+    /// to skip files that haven't changed since last build.
     /// </summary>
     public bool IsCacheValid(string relativePath, string encoding, DateTime sourceLastModified)
     {
@@ -114,8 +153,14 @@ public class DiskCacheManager
     }
 
     /// <summary>
-    /// Computes an ETag for a cached file based on its content hash.
-    /// Results are cached in memory and invalidated when the file's last-write time changes.
+    /// Computes an ETag for a cached file based on its SHA-256 content hash.
+    /// Results are memoized in memory and automatically invalidated when the
+    /// file's last-write timestamp changes. The ETag format is a quoted hex string
+    /// of the first 8 bytes of the hash: <c>"a1b2c3d4e5f67890"</c>.
+    ///
+    /// <para>This is used for HTTP conditional requests (If-None-Match / 304 Not Modified)
+    /// which avoids transferring the full response body when the browser already has
+    /// the current version cached.</para>
     /// </summary>
     public string ComputeETag(string filePath)
     {
@@ -135,7 +180,9 @@ public class DiskCacheManager
     }
 
     /// <summary>
-    /// Invalidates the entire cache.
+    /// Invalidates the entire cache by deleting and recreating the cache root directory.
+    /// Also clears the in-memory ETag cache.
+    /// Called on middleware startup (server restart) and by the ClearCacheTask.
     /// </summary>
     public void InvalidateAll()
     {
@@ -146,6 +193,59 @@ public class DiskCacheManager
             Directory.Delete(_cacheRoot, recursive: true);
             Directory.CreateDirectory(_cacheRoot);
             _logger.LogInformation("[JellyShim] Cache invalidated");
+        }
+    }
+
+    /// <summary>
+    /// Invalidates all cache entries whose relative path starts with the given prefix.
+    /// Deletes files from all encoding sub-directories (raw, br, gz, meta, img) and
+    /// cleans up the corresponding in-memory ETag entries.
+    /// Used to selectively purge FT-captured assets when their source files change.
+    /// </summary>
+    public void InvalidatePrefix(string prefix)
+    {
+        var safePath = prefix.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+
+        // Prevent path traversal
+        if (safePath.Contains("..", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Path traversal detected", nameof(prefix));
+        }
+
+        int deletedFiles = 0;
+
+        // Clear entries from all encoding subdirectories (raw, br, gz, meta)
+        foreach (var encodingDir in Directory.GetDirectories(_cacheRoot))
+        {
+            var prefixDir = Path.Combine(encodingDir, safePath);
+            var resolvedDir = Path.GetFullPath(prefixDir);
+
+            // Safety: ensure resolved path stays under cache root
+            if (!resolvedDir.StartsWith(Path.GetFullPath(_cacheRoot), StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (Directory.Exists(prefixDir))
+            {
+                var files = Directory.GetFiles(prefixDir, "*", SearchOption.AllDirectories);
+                deletedFiles += files.Length;
+                Directory.Delete(prefixDir, recursive: true);
+            }
+        }
+
+        // Clear matching ETag cache entries
+        foreach (var key in _etagCache.Keys)
+        {
+            if (key.Contains(safePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _etagCache.TryRemove(key, out _);
+            }
+        }
+
+        if (deletedFiles > 0)
+        {
+            _logger.LogInformation("[JellyShim] Invalidated {Count} cached files with prefix '{Prefix}'", deletedFiles, prefix);
         }
     }
 

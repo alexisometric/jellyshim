@@ -10,7 +10,19 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Tasks;
 
 /// <summary>
-/// Scheduled task that pre-optimizes all web assets at startup and on a daily schedule.
+/// Scheduled task that pre-optimizes all web assets (minify + compress + cache).
+///
+/// <para><b>Default triggers:</b></para>
+/// <list type="bullet">
+///   <item><b>Startup:</b> Runs when Jellyfin starts to warm the cache after the
+///     AssetOptimizationMiddleware has cleared it.</item>
+///   <item><b>Daily at 4 AM:</b> Re-processes to catch any Jellyfin web client updates.</item>
+/// </list>
+///
+/// <para>Can also be triggered manually from the Jellyfin Dashboard → Scheduled Tasks.</para>
+///
+/// <para><b>Incremental:</b> Files with valid (non-stale) cache entries are skipped.
+/// Only new or modified files are processed.</para>
 /// </summary>
 public class OptimizeAssetsTask : IScheduledTask
 {

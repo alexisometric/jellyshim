@@ -6,7 +6,15 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Optimization;
 
 /// <summary>
-/// Pre-compresses content using Brotli and Gzip at build time.
+/// Pre-compresses content using Brotli and Gzip.
+///
+/// <para>Used by <see cref="AssetProcessor"/> during scheduled pre-optimization
+/// to create both compressed variants for each asset. The middleware then serves
+/// the appropriate variant based on the client's Accept-Encoding header.</para>
+///
+/// <para><b>Compression levels:</b> Brotli uses SmallestSize (quality 11) for maximum
+/// compression at the cost of slower encoding — acceptable because pre-optimization
+/// runs offline. Gzip also uses SmallestSize for consistency.</para>
 /// </summary>
 public class PreCompressor
 {

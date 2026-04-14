@@ -8,8 +8,21 @@ namespace Jellyfin.Plugin.JellyShim.Middleware;
 /// <summary>
 /// Custom <see cref="IApplicationBuilderFactory"/> that injects JellyShim middleware
 /// before the framework builds the HTTP pipeline.
-/// Registered via <c>AddSingleton</c> before the framework's <c>TryAddSingleton</c>,
-/// this factory takes precedence and guarantees middleware is in the pipeline.
+///
+/// <para><b>Why not IStartupFilter?</b> Jellyfin 10.11 does not reliably consume
+/// IStartupFilter for plugins. By replacing the factory itself,
+/// we guarantee our middleware is in the pipeline regardless of host configuration.</para>
+///
+/// <para><b>Registration precedence:</b> Registered via <c>AddSingleton</c> in
+/// <see cref="PluginServiceRegistrator"/> before the framework's <c>TryAddSingleton</c>
+/// in ConfigureWebDefaults, so this factory takes precedence.</para>
+///
+/// <para><b>Middleware order:</b></para>
+/// <list type="number">
+///   <item><see cref="ImageOptimizationMiddleware"/> — intercepts /Items/*/Images/* first</item>
+///   <item><see cref="AssetOptimizationMiddleware"/> — handles /web/* and plugin assets</item>
+///   <item>Jellyfin's own middleware chain follows</item>
+/// </list>
 /// </summary>
 public class JellyShimApplicationBuilderFactory : IApplicationBuilderFactory
 {

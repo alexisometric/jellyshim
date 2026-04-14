@@ -211,4 +211,67 @@ public class DiskCacheManagerTests : IDisposable
         Assert.StartsWith(_tempDir, _cache.CacheRoot);
         Assert.Contains("jellyshim", _cache.CacheRoot);
     }
+
+    // ── InvalidatePrefix tests ────────────────────────────────────
+
+    [Fact]
+    public void InvalidatePrefix_RemovesMatchingFiles()
+    {
+        _cache.Store("ft/runtime.bundle.js", "raw", "content1"u8.ToArray());
+        _cache.Store("ft/runtime.bundle.js", "br", "content2"u8.ToArray());
+        _cache.Store("ft/runtime.bundle.js", "gz", "content3"u8.ToArray());
+        _cache.Store("other/file.js", "raw", "keep"u8.ToArray());
+
+        _cache.InvalidatePrefix("ft/");
+
+        Assert.False(_cache.TryGetCachedFile("ft/runtime.bundle.js", "raw", out _));
+        Assert.False(_cache.TryGetCachedFile("ft/runtime.bundle.js", "br", out _));
+        Assert.False(_cache.TryGetCachedFile("ft/runtime.bundle.js", "gz", out _));
+        Assert.True(_cache.TryGetCachedFile("other/file.js", "raw", out _));
+    }
+
+    [Fact]
+    public void InvalidatePrefix_ClearsETagCacheForAffectedFiles()
+    {
+        _cache.Store("ft/test.js", "raw", "content"u8.ToArray());
+        _cache.TryGetCachedFile("ft/test.js", "raw", out var cachedPath);
+
+        // Generate an ETag (populates in-memory cache)
+        var etag1 = _cache.ComputeETag(cachedPath);
+        Assert.NotNull(etag1);
+
+        _cache.InvalidatePrefix("ft/");
+
+        // File is gone, so TryGetCachedFile should return false
+        Assert.False(_cache.TryGetCachedFile("ft/test.js", "raw", out _));
+    }
+
+    [Fact]
+    public void InvalidatePrefix_NoOpForNonexistentPrefix()
+    {
+        _cache.Store("keep.js", "raw", "content"u8.ToArray());
+
+        // Should not throw
+        _cache.InvalidatePrefix("nonexistent/prefix/");
+
+        Assert.True(_cache.TryGetCachedFile("keep.js", "raw", out _));
+    }
+
+    [Fact]
+    public void InvalidatePrefix_RejectsPathTraversal()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            _cache.InvalidatePrefix("../../etc/"));
+    }
+
+    [Fact]
+    public void InvalidateAll_CreatesEmptyCacheRoot()
+    {
+        _cache.Store("file.js", "raw", "content"u8.ToArray());
+        _cache.InvalidateAll();
+
+        Assert.True(Directory.Exists(_cache.CacheRoot));
+        var (count, _) = _cache.GetCacheStats();
+        Assert.Equal(0, count);
+    }
 }

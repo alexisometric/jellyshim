@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Configuration;
 using Jellyfin.Plugin.JellyShim.Transformation;
+using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
@@ -14,17 +15,49 @@ using Microsoft.Net.Http.Headers;
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
 /// <summary>
-/// ASP.NET Core middleware that intercepts requests to /web/* and plugin static paths,
-/// serving pre-compressed cached assets with Cache-Control, ETag, Vary, CORP,
-/// Link preload, and security headers.
+/// Core middleware that intercepts all GET requests to Jellyfin's web client (/web/*),
+/// plugin static resource paths, and API endpoints.
+///
+/// <para><b>Pipeline position:</b> Registered BEFORE Jellyfin's own middleware via
+/// <see cref="JellyShimApplicationBuilderFactory"/>, so every request passes through
+/// here first. <see cref="ImageOptimizationMiddleware"/> runs even earlier (image paths).</para>
+///
+/// <para><b>Request classification flow:</b></para>
+/// <list type="number">
+///   <item>Non-GET or null path → pass through immediately</item>
+///   <item>Image paths (/Items/*/Images/*) → skip (handled by ImageOptimizationMiddleware)</item>
+///   <item>API paths → no-store + CORP + security headers, pass through</item>
+///   <item>Font files → immutable cache + Link preload header, pass through</item>
+///   <item>HTML files → never cached (File Transformation plugins need raw access)</item>
+///   <item>Plugin assets → on-the-fly capture, minify, compress, cache</item>
+///   <item>FT-bypassed web assets → capture after transformation, then optimize</item>
+///   <item>Normal web assets → serve from pre-built disk cache</item>
+/// </list>
+///
+/// <para><b>Compression strategy:</b> Brotli preferred, Gzip fallback, raw if client
+/// doesn't accept either. Three cache variants stored per asset (br, gz, raw).</para>
+///
+/// <para><b>File Transformation compatibility:</b> Files matching
+/// <see cref="Configuration.PluginConfiguration.FileTransformationBypassPatterns"/> are
+/// NOT served from the pre-built cache. Instead, the transformed response is captured
+/// from upstream, then minified/compressed/cached with a separate "ft/" cache prefix
+/// and <c>no-cache</c> browser cache policy (forces ETag revalidation).</para>
 /// </summary>
 public class AssetOptimizationMiddleware
 {
+    /// <summary>
+    /// File extensions eligible for minification and pre-compression.
+    /// Fonts, images, and binary files are excluded — they have their own handling.
+    /// </summary>
     private static readonly HashSet<string> CompressibleExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".js", ".css", ".html", ".htm", ".json", ".svg", ".xml", ".txt", ".map", ".mjs"
     };
 
+    /// <summary>
+    /// Font file extensions — served with immutable cache and Link preload headers
+    /// but NOT minified/compressed (already optimized binary formats).
+    /// </summary>
     private static readonly HashSet<string> FontExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".woff2", ".woff", ".ttf", ".otf", ".eot"
@@ -32,7 +65,8 @@ public class AssetOptimizationMiddleware
 
     /// <summary>
     /// API-like path prefixes that should NEVER be cached.
-    /// Jellyfin doesn't route everything under /api/ — most endpoints are at root level.
+    /// Jellyfin doesn't route everything under /api/ — most endpoints are at root level
+    /// (e.g. /System/Info, /Users/{id}, /Items/{id}). This list covers all known prefixes.
     /// </summary>
     private static readonly string[] ApiPrefixes =
     [
@@ -49,40 +83,67 @@ public class AssetOptimizationMiddleware
         "/socket", "/health"
     ];
 
-    // Parsed plugin paths (cached to avoid re-splitting on every request)
+    // ── Cached config parsing ──────────────────────────────────────────
+    // Config strings (newline-separated lists) are parsed once and re-parsed only
+    // when the raw string changes. This avoids String.Split on every request.
+
+    /// <summary>Parsed plugin asset path prefixes from <see cref="Configuration.PluginConfiguration.PluginAssetPaths"/>.</summary>
     private string[]? _cachedPluginPaths;
+    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
     private string? _cachedPluginPathsRaw;
 
-    // Parsed file transformation bypass patterns (cached)
+    /// <summary>Parsed File Transformation bypass patterns from config.</summary>
     private string[]? _cachedBypassPatterns;
+    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
     private string? _cachedBypassPatternsRaw;
+
+    // ── Dependencies ─────────────────────────────────────────────────
 
     private readonly RequestDelegate _next;
     private readonly DiskCacheManager _cache;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
     private readonly ILogger<AssetOptimizationMiddleware> _logger;
+
+    /// <summary>
+    /// Jellyfin's web client root directory (e.g. /usr/share/jellyfin-web).
+    /// Used to check source file timestamps for FT cache staleness detection.
+    /// </summary>
+    private readonly string? _webPath;
+
+    /// <summary>Counts the first few requests for diagnostic logging at startup.</summary>
     private static int _requestCount;
 
     /// <summary>
-    /// Per-key locks to prevent duplicate processing when concurrent requests
-    /// hit the same uncached plugin asset simultaneously.
+    /// Per-key locks that prevent duplicate processing when multiple concurrent
+    /// requests hit the same uncached asset simultaneously.
+    /// Without this, N concurrent requests for the same plugin script would each
+    /// capture → minify → compress → store independently, wasting CPU.
+    /// The first request does the work; others wait and then serve from cache.
     /// </summary>
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _inflightLocks = new();
 
     /// <summary>
     /// Maximum response body size to capture for on-the-fly optimization (2 MB).
+    /// Plugin assets larger than this are forwarded unmodified to avoid
+    /// excessive memory allocation and processing time.
     /// </summary>
     private const int MaxPluginCaptureBytes = 2 * 1024 * 1024;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AssetOptimizationMiddleware"/> class.
+    /// Called once by the DI container when the HTTP pipeline is built.
+    /// Clears the entire disk cache on startup because Jellyfin or its plugins may have
+    /// been updated since the last run — stale cached assets could cause UI breakage.
+    /// The <see cref="Tasks.OptimizeAssetsTask"/> startup trigger then repopulates
+    /// the pre-built web asset cache; FT and plugin assets are lazily captured on first request.
     /// </summary>
     public AssetOptimizationMiddleware(
         RequestDelegate next,
         DiskCacheManager cache,
         JsTransformer jsTransformer,
         CssTransformer cssTransformer,
+        IServerConfigurationManager configManager,
         ILogger<AssetOptimizationMiddleware> logger)
     {
         _next = next;
@@ -90,11 +151,20 @@ public class AssetOptimizationMiddleware
         _jsTransformer = jsTransformer;
         _cssTransformer = cssTransformer;
         _logger = logger;
+        _webPath = configManager.ApplicationPaths.WebPath;
         _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware instantiated");
+
+        // Clear entire cache on startup — Jellyfin or plugins may have been updated.
+        // Risk of serving stale minified code outweighs the cost of a cold start.
+        // The OptimizeAssetsTask startup trigger will repopulate pre-built assets;
+        // FT and plugin assets are re-captured lazily on first request.
+        _cache.InvalidateAll();
     }
 
     /// <summary>
-    /// Processes the request.
+    /// Processes an incoming HTTP request. This is the main entry point called by
+    /// the ASP.NET Core pipeline for every request.
+    /// See class-level documentation for the full request classification flow.
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
@@ -360,20 +430,108 @@ public class AssetOptimizationMiddleware
             }
         }
 
-        // File Transformation bypass: certain JS chunk files are patched by downstream
-        // plugins (Custom Tabs, JellyfinEnhanced, etc.) via File Transformation.
-        // We must NOT serve these from cache — pass through so patches can be applied.
+        // File Transformation compatibility: certain JS files are patched at runtime
+        // by downstream plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.) via
+        // File Transformation's PhysicalTransformedFileProvider.
+        // Instead of bypassing, we let upstream apply the patches, then capture the
+        // transformed response, minify, compress, cache, and serve it optimized.
         if (IsFileTransformationBypassed(relativePath, config))
         {
-            _logger.LogDebug("[JellyShim] File Transformation bypass: {Path}", path);
-            SetResponseHeaders(context, config, () =>
+            var ftCacheKey = "ft/" + relativePath;
+
+            // Determine best encoding
+            string? ftEncoding = null;
+            string? ftContentEncoding = null;
+            if (config.EnableCompression)
             {
-                if (config.EnableCacheHeaders)
+                if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
                 {
-                    SetPassthroughCacheHeaders(context.Response, path, false, config);
+                    ftEncoding = "br";
+                    ftContentEncoding = "br";
                 }
-            });
-            await _next(context).ConfigureAwait(false);
+                else if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+                {
+                    ftEncoding = "gz";
+                    ftContentEncoding = "gzip";
+                }
+            }
+
+            // Try to serve from FT cache (compressed first, then raw),
+            // but only if the source file hasn't changed since we cached
+            string? ftCachedPath = null;
+            bool ftCacheStale = false;
+
+            if (ftEncoding is not null &&
+                _cache.TryGetCachedFile(ftCacheKey, ftEncoding, out var ftCompressedPath))
+            {
+                ftCachedPath = ftCompressedPath;
+            }
+
+            if (ftCachedPath is null && _cache.TryGetCachedFile(ftCacheKey, "raw", out var ftRawPath))
+            {
+                ftCachedPath = ftRawPath;
+                ftContentEncoding = null;
+            }
+
+            // Verify source file hasn't been modified since cache was written
+            if (ftCachedPath is not null && _webPath is not null)
+            {
+                var sourceFile = Path.Combine(_webPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(sourceFile))
+                {
+                    var sourceModified = File.GetLastWriteTimeUtc(sourceFile);
+                    var cacheModified = File.GetLastWriteTimeUtc(ftCachedPath);
+                    if (sourceModified > cacheModified)
+                    {
+                        _logger.LogInformation("[JellyShim] FT cache stale for {Path} (source modified), re-capturing", path);
+                        ftCachedPath = null;
+                        ftCacheStale = true;
+                    }
+                }
+            }
+
+            if (ftCachedPath is not null)
+            {
+                await ServeCachedWebAsset(context, config, ftCachedPath, ext, ftContentEncoding, path, isFileTransformation: true).ConfigureAwait(false);
+                return;
+            }
+
+            // Cache miss — use per-key lock to prevent duplicate capture
+            var ftKeyLock = _inflightLocks.GetOrAdd(ftCacheKey, _ => new SemaphoreSlim(1, 1));
+            await ftKeyLock.WaitAsync(context.RequestAborted).ConfigureAwait(false);
+            try
+            {
+                // Re-check cache after acquiring lock (skip if we already know it's stale)
+                if (!ftCacheStale)
+                {
+                    ftCachedPath = null;
+                    if (ftEncoding is not null &&
+                        _cache.TryGetCachedFile(ftCacheKey, ftEncoding, out var ftCompPath2))
+                    {
+                        ftCachedPath = ftCompPath2;
+                    }
+
+                    if (ftCachedPath is null && _cache.TryGetCachedFile(ftCacheKey, "raw", out var ftRawPath2))
+                    {
+                        ftCachedPath = ftRawPath2;
+                        ftContentEncoding = null;
+                    }
+
+                    if (ftCachedPath is not null)
+                    {
+                        await ServeCachedWebAsset(context, config, ftCachedPath, ext, ftContentEncoding, path, isFileTransformation: true).ConfigureAwait(false);
+                        return;
+                    }
+                }
+
+                // Cache miss or stale — capture the transformed response from upstream
+                await CaptureAndOptimizeTransformedAsset(context, config, ext, path, ftCacheKey, ftEncoding, ftContentEncoding).ConfigureAwait(false);
+            }
+            finally
+            {
+                ftKeyLock.Release();
+            }
+
             return;
         }
 
@@ -639,6 +797,205 @@ public class AssetOptimizationMiddleware
     }
 
     /// <summary>
+    /// Captures a web asset response that has been transformed by File Transformation
+    /// (PhysicalTransformedFileProvider), minifies JS/CSS, compresses, caches, and serves.
+    /// </summary>
+    private async Task CaptureAndOptimizeTransformedAsset(
+        HttpContext context,
+        PluginConfiguration config,
+        string ext,
+        string path,
+        string cacheKey,
+        string? encoding,
+        string? contentEncoding)
+    {
+        var originalBody = context.Response.Body;
+        using var captureStream = new MemoryStream();
+        context.Response.Body = captureStream;
+
+        // Strip Accept-Encoding so upstream doesn't compress — we need raw bytes for minification
+        var savedAcceptEncoding = context.Request.Headers.AcceptEncoding;
+        context.Request.Headers.AcceptEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+
+        try
+        {
+            await _next(context).ConfigureAwait(false);
+
+            context.Request.Headers.AcceptEncoding = savedAcceptEncoding;
+
+            if (context.Response.StatusCode != StatusCodes.Status200OK ||
+                captureStream.Length == 0 ||
+                captureStream.Length > MaxPluginCaptureBytes)
+            {
+                captureStream.Position = 0;
+                context.Response.Body = originalBody;
+                await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+                return;
+            }
+
+            var rawBytes = captureStream.ToArray();
+
+            // Decompress if upstream still compressed despite removing Accept-Encoding
+            var upstreamContentEncoding = context.Response.Headers.ContentEncoding.ToString();
+            if (!string.IsNullOrEmpty(upstreamContentEncoding))
+            {
+                rawBytes = DecompressUpstreamResponse(rawBytes, upstreamContentEncoding);
+                context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+            }
+
+            // Minify JS or CSS
+            byte[] optimized = rawBytes;
+            if (config.EnableMinification)
+            {
+                if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+                    ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase))
+                {
+                    optimized = _jsTransformer.MinifyBytes(rawBytes);
+                }
+                else if (ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
+                {
+                    optimized = _cssTransformer.MinifyBytes(rawBytes);
+                }
+            }
+
+            // Cache raw minified version
+            _cache.Store(cacheKey, "raw", optimized);
+
+            // Compress and cache both variants
+            if (config.EnableCompression)
+            {
+                var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
+                var gzip = CompressGzip(optimized);
+                _cache.Store(cacheKey, "br", brotli);
+                _cache.Store(cacheKey, "gz", gzip);
+
+                _logger.LogInformation(
+                    "[JellyShim] File Transformation asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
+                    path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
+            }
+
+            // Serve the best version
+            byte[] toServe;
+            if (encoding is not null)
+            {
+                _cache.TryGetCachedFile(cacheKey, encoding, out var compressedCachePath);
+                toServe = compressedCachePath is not null ? await File.ReadAllBytesAsync(compressedCachePath, context.RequestAborted).ConfigureAwait(false) : optimized;
+                if (compressedCachePath is null)
+                {
+                    contentEncoding = null;
+                }
+            }
+            else
+            {
+                toServe = optimized;
+                contentEncoding = null;
+            }
+
+            context.Response.Body = originalBody;
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = GetContentType(ext);
+            context.Response.ContentLength = toServe.Length;
+
+            if (contentEncoding is not null)
+            {
+                context.Response.Headers.ContentEncoding = contentEncoding;
+            }
+
+            context.Response.Headers.Vary = "Accept-Encoding";
+
+            var etag = _cache.ComputeETag(_cache.GetCachedFilePath(cacheKey, "raw"));
+            context.Response.Headers.ETag = etag;
+
+            if (config.EnableCacheHeaders)
+            {
+                SetCacheHeaders(context.Response, path, config, isFileTransformation: true);
+            }
+
+            if (config.EnableJsModulepreloadHeaders &&
+                (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+                 ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase)))
+            {
+                context.Response.Headers.Append("Link", $"<{path}>; rel=modulepreload");
+            }
+
+            if (config.EnableCrossOriginResourcePolicy)
+            {
+                context.Response.Headers["Cross-Origin-Resource-Policy"] = config.CrossOriginResourcePolicyValue;
+            }
+
+            AddSecurityHeaders(context.Response, config);
+
+            await context.Response.Body.WriteAsync(toServe, context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "[JellyShim] Failed to optimize File Transformation asset: {Path}", path);
+
+            captureStream.Position = 0;
+            context.Response.Body = originalBody;
+            await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Serves a previously cached web asset (including File Transformation captures)
+    /// with ETag/304 support, cache headers, and security headers.
+    /// </summary>
+    private async Task ServeCachedWebAsset(
+        HttpContext context,
+        PluginConfiguration config,
+        string cachedPath,
+        string ext,
+        string? contentEncoding,
+        string path,
+        bool isFileTransformation = false)
+    {
+        var response = context.Response;
+        var etag = _cache.ComputeETag(cachedPath);
+
+        if (context.Request.Headers.IfNoneMatch == etag)
+        {
+            response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+
+        var fileInfo = new FileInfo(cachedPath);
+        response.StatusCode = StatusCodes.Status200OK;
+        response.ContentType = GetContentType(ext);
+        response.ContentLength = fileInfo.Length;
+
+        if (contentEncoding is not null)
+        {
+            response.Headers.ContentEncoding = contentEncoding;
+        }
+
+        response.Headers.Vary = "Accept-Encoding";
+        response.Headers.ETag = etag;
+
+        if (config.EnableCacheHeaders)
+        {
+            SetCacheHeaders(response, path, config, isFileTransformation);
+        }
+
+        if (config.EnableJsModulepreloadHeaders &&
+            (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
+             ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase)))
+        {
+            response.Headers.Append("Link", $"<{path}>; rel=modulepreload");
+        }
+
+        if (config.EnableCrossOriginResourcePolicy)
+        {
+            response.Headers["Cross-Origin-Resource-Policy"] = config.CrossOriginResourcePolicyValue;
+        }
+
+        AddSecurityHeaders(response, config);
+
+        await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
+        await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Serves a previously cached plugin asset with ETag/304 support.
     /// </summary>
     private async Task ServePluginCachedFile(
@@ -877,8 +1234,21 @@ public class AssetOptimizationMiddleware
     /// <summary>
     /// Determines appropriate cache policy based on the file path.
     /// </summary>
-    private static void SetCacheHeaders(HttpResponse response, string path, PluginConfiguration config)
+    /// <param name="response">The HTTP response.</param>
+    /// <param name="path">The request path.</param>
+    /// <param name="config">Plugin configuration.</param>
+    /// <param name="isFileTransformation">True if this is a File Transformation-captured asset
+    /// that may change when FT plugins are updated. Uses no-cache to force ETag revalidation.</param>
+    private static void SetCacheHeaders(HttpResponse response, string path, PluginConfiguration config, bool isFileTransformation = false)
     {
+        if (isFileTransformation)
+        {
+            // FT files can change when FT plugins are updated. Force browser to revalidate
+            // every request via ETag; the 304 path keeps it fast when content hasn't changed.
+            response.Headers[HeaderNames.CacheControl] = "public, no-cache";
+            return;
+        }
+
         if (IsHashedAsset(path))
         {
             response.Headers[HeaderNames.CacheControl] =

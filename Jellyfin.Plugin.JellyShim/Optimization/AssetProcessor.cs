@@ -7,8 +7,22 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Optimization;
 
 /// <summary>
-/// Orchestrates the full asset optimization pipeline:
-/// scan WebPath → minify (JS/CSS) → transform (HTML) → pre-compress (Brotli/Gzip) → store in disk cache.
+/// Orchestrates the full asset optimization pipeline for scheduled pre-optimization:
+/// scan Jellyfin's WebPath directory → minify JS/CSS → pre-compress (Brotli + Gzip)
+/// → store all variants in the disk cache.
+///
+/// <para><b>Triggered by:</b> <see cref="Tasks.OptimizeAssetsTask"/> at startup and
+/// daily at 4 AM. This ensures the cache is warm for common assets, reducing
+/// first-request latency.</para>
+///
+/// <para><b>File Transformation handling:</b> Files matching
+/// <see cref="Configuration.PluginConfiguration.FileTransformationBypassPatterns"/>
+/// are SKIPPED by the processor. These files are patched at runtime by FT plugins
+/// and are instead captured lazily by the AssetOptimizationMiddleware.</para>
+///
+/// <para><b>Incremental processing:</b> If the cache already contains a valid
+/// (non-stale) version of a file, it's skipped. Only new or modified files
+/// are reprocessed.</para>
 /// </summary>
 public class AssetProcessor
 {

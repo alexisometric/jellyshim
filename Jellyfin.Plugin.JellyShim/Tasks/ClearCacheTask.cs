@@ -9,8 +9,12 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyShim.Tasks;
 
 /// <summary>
-/// Scheduled task that clears the JellyShim disk cache.
-/// Can be triggered manually from the dashboard or the plugin config page.
+/// Scheduled task that clears the JellyShim disk cache (all compressed, minified,
+/// and image-optimized assets). After clearing, assets are re-optimized on next access
+/// or on the next <see cref="OptimizeAssetsTask"/> run.
+///
+/// <para><b>No automatic triggers</b> — manual only. Can be triggered from
+/// Jellyfin Dashboard → Scheduled Tasks or programmatically.</para>
 /// </summary>
 public class ClearCacheTask : IScheduledTask
 {

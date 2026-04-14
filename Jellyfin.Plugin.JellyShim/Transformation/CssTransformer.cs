@@ -6,9 +6,18 @@ using NUglify;
 namespace Jellyfin.Plugin.JellyShim.Transformation;
 
 /// <summary>
-/// Applies additional minification to CSS files using NUglify.
-/// Also injects font-display:swap into @font-face rules that lack it,
-/// preventing FOIT (Flash of Invisible Text) during font loading.
+/// Applies CSS minification using the NUglify library, and injects
+/// <c>font-display: swap</c> into <c>@font-face</c> rules that lack it.
+///
+/// <para><b>Font-display injection:</b> Adding <c>font-display: swap</c> prevents
+/// FOIT (Flash of Invisible Text) during font loading — the browser renders text
+/// immediately with a fallback font, then swaps in the custom font once loaded.
+/// This is a Lighthouse best practice and improves perceived performance.
+/// Only <c>@font-face</c> blocks that don't already contain <c>font-display</c>
+/// are modified.</para>
+///
+/// <para><b>Error handling:</b> Same as <see cref="JsTransformer"/> — NUglify's output
+/// is used if it's smaller, even with non-fatal errors.</para>
 /// </summary>
 public class CssTransformer
 {

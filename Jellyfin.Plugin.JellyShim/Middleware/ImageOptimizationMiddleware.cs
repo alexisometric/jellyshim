@@ -13,17 +13,36 @@ using Microsoft.Net.Http.Headers;
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
 /// <summary>
-/// Middleware that intercepts Jellyfin image requests and processes them natively
+/// Middleware that intercepts Jellyfin image API requests and processes them natively
 /// using ImageSharp for on-the-fly resizing, quality reduction, and format conversion.
-/// No external service required — all processing happens in-process.
+///
+/// <para><b>Pipeline position:</b> Runs BEFORE <see cref="AssetOptimizationMiddleware"/>
+/// in the HTTP pipeline (registered first by <see cref="JellyShimApplicationBuilderFactory"/>),
+/// so image requests are handled here and never reach the asset middleware.</para>
+///
+/// <para><b>Matched endpoints:</b> All Jellyfin image paths:
+///   /Items/{id}/Images/{type}, /Users/{id}/Images/{type},
+///   /Artists|Genres|MusicGenres|Persons|Studios|Years/{name}/Images/{type}.
+/// Also handles /emby/ and /mediabrowser/ compatibility prefixes.</para>
+///
+/// <para><b>Processing flow:</b></para>
+/// <list type="number">
+///   <item>Check config + regex match → skip non-image requests</item>
+///   <item>Determine per-type settings (maxWidth, quality) from config</item>
+///   <item>Negotiate output format (AVIF → WebP → JPEG) based on Accept header</item>
+///   <item>Try disk cache (keyed on path + query + processing params)</item>
+///   <item>On cache miss: capture upstream response, process with ImageProcessor, cache, serve</item>
+/// </list>
+///
+/// <para><b>No external service required</b> — all processing happens in-process via
+/// ImageSharp (resize/WebP/JPEG) and ffmpeg (AVIF only).</para>
 /// </summary>
 public partial class ImageOptimizationMiddleware
 {
-    // Matches all Jellyfin image endpoints:
-    //   /Items/{id}/Images/{type}[/{index}]
-    //   /Users/{id}/Images/{type}
-    //   /Artists|Genres|MusicGenres|Persons|Studios|Years/{name}/Images/{type}
-    // Also handles /emby/ and /mediabrowser/ compatibility prefixes
+    // Matches all Jellyfin image API endpoints.
+    // Captures the image type (Primary, Backdrop, Logo, etc.) in group 1.
+    // The /emby/ and /mediabrowser/ prefixes are optional legacy compatibility paths
+    // that Jellyfin still routes to the same handlers.
     [GeneratedRegex(@"^(?:/emby|/mediabrowser)?/(?:Items|Users|Artists|Genres|MusicGenres|Persons|Studios|Years)/[^/]+/Images/([^/?]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex ImagePathRegex();
 
@@ -32,7 +51,9 @@ public partial class ImageOptimizationMiddleware
     private readonly ImageProcessor _imageProcessor;
     private readonly ILogger<ImageOptimizationMiddleware> _logger;
 
-    /// <summary>Maximum original image size we'll attempt to process (50 MB).</summary>
+    /// <summary>Maximum original image size we'll attempt to process (50 MB).
+    /// Images larger than this are forwarded unmodified to avoid excessive
+    /// memory allocation (ImageSharp loads the full image into memory).</summary>
     private const long MaxCaptureBytes = 50 * 1024 * 1024;
 
     /// <summary>
@@ -52,7 +73,9 @@ public partial class ImageOptimizationMiddleware
     }
 
     /// <summary>
-    /// Processes the request.
+    /// Processes an incoming HTTP request.
+    /// Only handles GET requests to Jellyfin image endpoints when image optimization
+    /// is enabled in the plugin configuration. All other requests pass through.
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
@@ -224,7 +247,11 @@ public partial class ImageOptimizationMiddleware
 
     /// <summary>
     /// Retrieves per-type MaxWidth and Quality from configuration.
-    /// Each Jellyfin image type has its own independent settings.
+    /// Each Jellyfin image type (Primary, Backdrop, Logo, etc.) has its own
+    /// independent size and quality settings, allowing fine-grained control
+    /// over the compression/quality tradeoff per use case.
+    /// For example, Backdrop images can be 1920px wide at 75% quality,
+    /// while Profile images only need 200px at 85% quality.
     /// </summary>
     private static (int MaxWidth, int Quality) GetImageSettings(string imageType, Configuration.PluginConfiguration config)
     {
@@ -247,9 +274,19 @@ public partial class ImageOptimizationMiddleware
     }
 
     /// <summary>
-    /// Selects output format based on Accept header and config preference.
-    /// Supports AVIF, WebP, and JPEG output with automatic negotiation.
-    /// AVIF requires ffmpeg with libaom-av1 encoder (bundled with Jellyfin).
+    /// Selects the output image format based on the browser's Accept header and
+    /// the user's configured preference.
+    ///
+    /// <para><b>Negotiation cascade:</b></para>
+    /// <list type="bullet">
+    ///   <item>If preference is "avif" and browser accepts image/avif and ffmpeg supports it → AVIF</item>
+    ///   <item>If preference is "webp" and browser accepts image/webp → WebP</item>
+    ///   <item>If preference is "auto": AVIF (if supported) → WebP → JPEG</item>
+    ///   <item>Otherwise → JPEG (universal fallback)</item>
+    /// </list>
+    ///
+    /// <para>AVIF support is probed once at startup by <see cref="ImageProcessor.ProbeAvifSupport"/>.
+    /// On systems without ffmpeg or without libaom-av1, AVIF is silently skipped.</para>
     /// </summary>
     private string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config)
     {
@@ -287,7 +324,11 @@ public partial class ImageOptimizationMiddleware
     }
 
     /// <summary>
-    /// Builds a deterministic cache key from request path and processing parameters.
+    /// Builds a deterministic cache key from the request path, query string,
+    /// and processing parameters (maxWidth, quality, format).
+    /// Uses SHA-256 to produce a fixed-length key that's safe for filesystem paths.
+    /// The query string is included because Jellyfin appends cache-busting parameters
+    /// (e.g. ?tag=abc123) that indicate different image versions.
     /// </summary>
     private static string BuildCacheKey(string path, string? query, int maxWidth, int quality, string format)
     {

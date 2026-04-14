@@ -5,6 +5,8 @@ using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Configuration;
 using Jellyfin.Plugin.JellyShim.Middleware;
 using Jellyfin.Plugin.JellyShim.Transformation;
+using MediaBrowser.Controller.Configuration;
+using MediaBrowser.Controller;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -18,6 +20,7 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
     private readonly Mock<ILogger<AssetOptimizationMiddleware>> _loggerMock;
+    private readonly Mock<IServerConfigurationManager> _configManagerMock;
 
     public AssetOptimizationMiddlewareTests()
     {
@@ -28,6 +31,11 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         _jsTransformer = new JsTransformer(new Mock<ILogger<JsTransformer>>().Object);
         _cssTransformer = new CssTransformer(new Mock<ILogger<CssTransformer>>().Object);
         _loggerMock = new Mock<ILogger<AssetOptimizationMiddleware>>();
+
+        var appPathsMock = new Mock<IServerApplicationPaths>();
+        appPathsMock.Setup(p => p.WebPath).Returns(Path.Combine(_tempDir, "web"));
+        _configManagerMock = new Mock<IServerConfigurationManager>();
+        _configManagerMock.Setup(c => c.ApplicationPaths).Returns(appPathsMock.Object);
     }
 
     public void Dispose()
@@ -43,7 +51,7 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
     private AssetOptimizationMiddleware CreateMiddleware(RequestDelegate next)
     {
-        return new AssetOptimizationMiddleware(next, _cache, _jsTransformer, _cssTransformer, _loggerMock.Object);
+        return new AssetOptimizationMiddleware(next, _cache, _jsTransformer, _cssTransformer, _configManagerMock.Object, _loggerMock.Object);
     }
 
     private static DefaultHttpContext CreateHttpContext(string method, string path, string? acceptEncoding = null)
@@ -167,9 +175,9 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     {
         var config = SetupPluginWithConfig();
         var jsContent = "var x=1;"u8.ToArray();
-        _cache.Store("main.abcdef12.js", "raw", jsContent);
 
         var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("main.abcdef12.js", "raw", jsContent);
         var context = CreateHttpContext("GET", "/web/main.abcdef12.js", "br, gzip");
 
         await middleware.InvokeAsync(context);
@@ -186,11 +194,12 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     {
         var config = SetupPluginWithConfig();
         var jsContent = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
         _cache.Store("etag304.js", "raw", jsContent);
         _cache.TryGetCachedFile("etag304.js", "raw", out var cachedPath);
         var etag = _cache.ComputeETag(cachedPath);
 
-        var middleware = CreateMiddleware(_ => Task.CompletedTask);
         var context = CreateHttpContext("GET", "/web/etag304.js");
         context.Request.Headers.IfNoneMatch = etag;
 
@@ -205,10 +214,11 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         var config = SetupPluginWithConfig();
         var rawContent = "var longVariable = 'test';"u8.ToArray();
         var brContent = CompressBrotli(rawContent);
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
         _cache.Store("compressed.js", "raw", rawContent);
         _cache.Store("compressed.js", "br", brContent);
 
-        var middleware = CreateMiddleware(_ => Task.CompletedTask);
         var context = CreateHttpContext("GET", "/web/compressed.js", "br, gzip");
 
         await middleware.InvokeAsync(context);
@@ -312,7 +322,6 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
         // Pre-populate cache
         var cached = "var x=1;"u8.ToArray();
-        _cache.Store("plugin/CachedPlugin/app.js", "raw", cached);
 
         var nextCalled = false;
         var middleware = CreateMiddleware(_ =>
@@ -320,6 +329,8 @@ public class AssetOptimizationMiddlewareTests : IDisposable
             nextCalled = true;
             return Task.CompletedTask;
         });
+        _cache.Store("plugin/CachedPlugin/app.js", "raw", cached);
+
         var context = CreateHttpContext("GET", "/CachedPlugin/app.js");
 
         await middleware.InvokeAsync(context);
@@ -463,9 +474,10 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         });
 
         var jsContent = "var a=1;"u8.ToArray();
-        _cache.Store("corp-test.js", "raw", jsContent);
 
         var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("corp-test.js", "raw", jsContent);
+
         var context = CreateHttpContext("GET", "/web/corp-test.js");
 
         await middleware.InvokeAsync(context);
@@ -484,9 +496,10 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         });
 
         var jsContent = "var a=1;"u8.ToArray();
-        _cache.Store("sec-test.js", "raw", jsContent);
 
         var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("sec-test.js", "raw", jsContent);
+
         var context = CreateHttpContext("GET", "/web/sec-test.js");
 
         await middleware.InvokeAsync(context);
@@ -524,5 +537,370 @@ public class AssetOptimizationMiddlewareTests : IDisposable
             brotli.Write(input);
         }
         return output.ToArray();
+    }
+
+    // ── File Transformation capture-after-transform tests ─────────
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_CapturesAndOptimizesTransformedResponse()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "main.*.bundle.js",
+            EnableMinification = true,
+            EnableCompression = true
+        });
+
+        var upstream = """
+            // This comment should be removed by minification
+            function patchedByFT() {
+                var longVariableName = 42;
+                return longVariableName;
+            }
+            """;
+        var upstreamBytes = Encoding.UTF8.GetBytes(upstream);
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/javascript";
+            ctx.Response.Body.Write(upstreamBytes);
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", "/web/main.abc123.bundle.js", "br, gzip");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        // Verify FT cache was populated (prefixed with ft/)
+        Assert.True(_cache.TryGetCachedFile("ft/main.abc123.bundle.js", "raw", out _));
+        Assert.True(_cache.TryGetCachedFile("ft/main.abc123.bundle.js", "br", out _));
+        Assert.True(_cache.TryGetCachedFile("ft/main.abc123.bundle.js", "gz", out _));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_ServesCachedOnSecondRequest()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "runtime.bundle.js",
+            EnableMinification = true,
+            EnableCompression = false
+        });
+
+        var cached = "var x=1;"u8.ToArray();
+
+        var nextCalled = false;
+        var middleware = CreateMiddleware(_ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+        _cache.Store("ft/runtime.bundle.js", "raw", cached);
+
+        var context = CreateHttpContext("GET", "/web/runtime.bundle.js");
+
+        await middleware.InvokeAsync(context);
+
+        // Should NOT call next — served from FT cache
+        Assert.False(nextCalled);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_Returns304_OnEtagMatch()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "runtime.bundle.js"
+        });
+
+        var cached = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("ft/runtime.bundle.js", "raw", cached);
+        _cache.TryGetCachedFile("ft/runtime.bundle.js", "raw", out var cachedPath);
+        var etag = _cache.ComputeETag(cachedPath);
+
+        var context = CreateHttpContext("GET", "/web/runtime.bundle.js");
+        context.Request.Headers.IfNoneMatch = etag;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status304NotModified, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_SetsNoCacheHeaders()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "runtime.bundle.js",
+            EnableCacheHeaders = true
+        });
+
+        var cached = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("ft/runtime.bundle.js", "raw", cached);
+
+        var context = CreateHttpContext("GET", "/web/runtime.bundle.js");
+
+        await middleware.InvokeAsync(context);
+
+        // FT files should get no-cache to force ETag revalidation
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.Contains("no-cache", cacheControl);
+        Assert.DoesNotContain("max-age=2592000", cacheControl);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_CapturedResponse_SetsNoCacheHeaders()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "runtime.bundle.js",
+            EnableMinification = false,
+            EnableCompression = false,
+            EnableCacheHeaders = true
+        });
+
+        var upstream = "var x = 1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/javascript";
+            ctx.Response.Body.Write(upstream);
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", "/web/runtime.bundle.js");
+
+        await middleware.InvokeAsync(context);
+
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.Contains("no-cache", cacheControl);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_FtAsset_DetectsStaleCacheFromSourceFile()
+    {
+        // Set up a web directory with a source file
+        var webDir = Path.Combine(_tempDir, "web");
+        Directory.CreateDirectory(webDir);
+        var sourceFile = Path.Combine(webDir, "runtime.bundle.js");
+        File.WriteAllText(sourceFile, "// original source");
+
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = "runtime.bundle.js",
+            EnableMinification = false,
+            EnableCompression = false
+        });
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/javascript";
+            ctx.Response.Body.Write("var updated = true;"u8);
+            return Task.CompletedTask;
+        });
+
+        // Pre-populate cache with old content (backdate the cache file)
+        _cache.Store("ft/runtime.bundle.js", "raw", "var old = true;"u8.ToArray());
+        _cache.TryGetCachedFile("ft/runtime.bundle.js", "raw", out var cachedPath);
+
+        // Make cache file older than source
+        File.SetLastWriteTimeUtc(cachedPath, DateTime.UtcNow.AddHours(-1));
+        File.SetLastWriteTimeUtc(sourceFile, DateTime.UtcNow);
+
+        var context = CreateHttpContext("GET", "/web/runtime.bundle.js");
+
+        await middleware.InvokeAsync(context);
+
+        // Should have re-captured from upstream (not served stale cache)
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        // Verify the cache was updated
+        _cache.TryGetCachedFile("ft/runtime.bundle.js", "raw", out var updatedPath);
+        var content = File.ReadAllText(updatedPath);
+        Assert.Contains("updated", content);
+    }
+
+    // ── Cache header tests ────────────────────────────────────────
+
+    [Fact]
+    public async Task InvokeAsync_HashedAsset_SetsImmutableCacheHeaders()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableCacheHeaders = true,
+            HashedAssetMaxAge = 31536000
+        });
+
+        var jsContent = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("main.a1b2c3d4.js", "raw", jsContent);
+
+        var context = CreateHttpContext("GET", "/web/main.a1b2c3d4.js");
+
+        await middleware.InvokeAsync(context);
+
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.Contains("immutable", cacheControl);
+        Assert.Contains("31536000", cacheControl);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_NonHashedAsset_SetsStaticMaxAge()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableCacheHeaders = true,
+            StaticAssetMaxAge = 2592000,
+            StaleWhileRevalidate = 86400
+        });
+
+        var jsContent = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("utils.js", "raw", jsContent);
+
+        var context = CreateHttpContext("GET", "/web/utils.js");
+
+        await middleware.InvokeAsync(context);
+
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.Contains("2592000", cacheControl);
+        Assert.Contains("stale-while-revalidate", cacheControl);
+        Assert.DoesNotContain("immutable", cacheControl);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_PluginAsset_SetsPluginMaxAge()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/TestPlugin/",
+            EnableCacheHeaders = true,
+            PluginAssetMaxAge = 86400
+        });
+
+        var cached = "var x=1;"u8.ToArray();
+
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("plugin/TestPlugin/script.js", "raw", cached);
+
+        var context = CreateHttpContext("GET", "/TestPlugin/script.js");
+
+        await middleware.InvokeAsync(context);
+
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.Contains("86400", cacheControl);
+    }
+
+    // ── FT wildcard matching tests ────────────────────────────────
+
+    [Theory]
+    [InlineData("/web/home-html.abc123.chunk.js", "home*.chunk.js", true)]
+    [InlineData("/web/main.jellyfin.bundle.js", "main.*.bundle.js", true)]
+    [InlineData("/web/runtime.bundle.js", "runtime.bundle.js", true)]
+    [InlineData("/web/user-plugin-settings.abc.chunk.js", "user-plugin*.chunk.js", true)]
+    [InlineData("/web/utils.js", "home*.chunk.js\nmain.*.bundle.js", false)]
+    [InlineData("/web/other.js", "runtime.bundle.js", false)]
+    public async Task InvokeAsync_FtPatternMatching_RoutesCorrectly(string path, string patterns, bool shouldCapture)
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            FileTransformationBypassPatterns = patterns,
+            EnableMinification = false,
+            EnableCompression = false
+        });
+
+        var upstreamCalled = false;
+        var middleware = CreateMiddleware(ctx =>
+        {
+            upstreamCalled = true;
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/javascript";
+            ctx.Response.Body.Write("var x=1;"u8);
+            return Task.CompletedTask;
+        });
+
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        if (shouldCapture)
+        {
+            // FT-matched files go through capture flow (upstream is called)
+            Assert.True(upstreamCalled);
+            var relativePath = path[5..]; // strip "/web/"
+            Assert.True(_cache.TryGetCachedFile("ft/" + relativePath, "raw", out _));
+        }
+    }
+
+    // ── ETag consistency tests ────────────────────────────────────
+
+    [Fact]
+    public async Task InvokeAsync_WebAsset_ETagChangesWhenContentChanges()
+    {
+        var config = SetupPluginWithConfig();
+
+        // First version
+        var middleware1 = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("etag-change.js", "raw", "var version1=1;"u8.ToArray());
+        var context1 = CreateHttpContext("GET", "/web/etag-change.js");
+        await middleware1.InvokeAsync(context1);
+        var etag1 = context1.Response.Headers.ETag.ToString();
+
+        // Update the content
+        _cache.Store("etag-change.js", "raw", "var version2=2;"u8.ToArray());
+        var context2 = CreateHttpContext("GET", "/web/etag-change.js");
+        await middleware1.InvokeAsync(context2);
+        var etag2 = context2.Response.Headers.ETag.ToString();
+
+        Assert.NotEqual(etag1, etag2);
+    }
+
+    // ── Plugin CSS capture test ───────────────────────────────────
+
+    [Fact]
+    public async Task InvokeAsync_PluginCssAsset_CapturesAndMinifies()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/JellyTweaks/",
+            EnableMinification = true,
+            EnableCompression = false
+        });
+
+        var upstream = """
+            /* This comment should be removed */
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            """;
+        var upstreamBytes = Encoding.UTF8.GetBytes(upstream);
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "text/css";
+            ctx.Response.Body.Write(upstreamBytes);
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", "/JellyTweaks/style.css");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+        Assert.True(_cache.TryGetCachedFile("plugin/JellyTweaks/style.css", "raw", out var rawPath));
+
+        var cachedContent = File.ReadAllText(rawPath);
+        Assert.DoesNotContain("This comment", cachedContent);
     }
 }

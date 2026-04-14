@@ -4,10 +4,15 @@ namespace Jellyfin.Plugin.JellyShim.Configuration;
 
 /// <summary>
 /// Plugin configuration for JellyShim.
+/// All settings are editable via the admin config page (Dashboard → Plugins → JellyShim).
+/// Defaults are chosen to be safe and performant out of the box.
 /// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
     // ── Asset Optimization ──────────────────────────────────────────
+    // Controls whether JS/CSS content is minified (NUglify) and pre-compressed
+    // (Brotli/Gzip) before being cached to disk. Both are enabled by default
+    // for maximum performance improvement.
 
     /// <summary>Gets or sets a value indicating whether JS/CSS minification is enabled.</summary>
     public bool EnableMinification { get; set; } = true;
@@ -19,6 +24,10 @@ public class PluginConfiguration : BasePluginConfiguration
     public int BrotliCompressionLevel { get; set; } = 11;
 
     // ── Cache Headers ───────────────────────────────────────────────
+    // Controls HTTP Cache-Control headers sent to browsers. Hashed assets
+    // (content-addressed filenames like main.a1b2c3d4.bundle.js) get long
+    // immutable caching. Unhashed assets get shorter max-age with
+    // stale-while-revalidate for background refresh.
 
     /// <summary>Gets or sets a value indicating whether optimal cache headers are added.</summary>
     public bool EnableCacheHeaders { get; set; } = true;
@@ -72,6 +81,10 @@ public class PluginConfiguration : BasePluginConfiguration
     public string PermissionsPolicy { get; set; } = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()";
 
     // ── Image Optimization (native) ────────────────────────────────
+    // When enabled, intercepts Jellyfin image API responses and processes
+    // them in-process: resize to max width, re-encode to a modern format
+    // (AVIF/WebP/JPEG), and cache to disk. Disabled by default to avoid
+    // unexpected changes to image quality — enable after reviewing per-type settings.
 
     /// <summary>Gets or sets a value indicating whether native image optimization is enabled.</summary>
     public bool EnableImageOptimization { get; set; } = false;
@@ -163,22 +176,33 @@ public class PluginConfiguration : BasePluginConfiguration
     public int DefaultImageQuality { get; set; } = 80;
 
     // ── Plugin Static Asset Paths ───────────────────────────────────
+    // Path prefixes that identify plugin static resources (JS/CSS/JSON).
+    // Requests matching these prefixes are captured, minified, compressed,
+    // and cached on first access. Paths excluded here (like /HomeScreen/)
+    // pass through unmodified — important for plugins that serve dynamic content.
 
     /// <summary>
     /// Gets or sets known plugin static asset path prefixes (one per line).
     /// These paths get plugin-level caching + compression.
     /// </summary>
     public string PluginAssetPaths { get; set; } =
-        "/JellyTweaks/\n/HomeScreen/\n/MediaBarEnhanced/\n/Plugins/Announcements/\n/JellyfinEnhanced/\n/JavaScriptInjector/";
+        "/JellyTweaks/\n/MediaBarEnhanced/\n/Plugins/Announcements/\n/JellyfinEnhanced/\n/JavaScriptInjector/";
 
     // ── File Transformation Compatibility ───────────────────────────
+    // Filename patterns for web assets patched at runtime by File Transformation
+    // plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.).
+    // These files are NOT pre-optimized by the scheduled task — instead,
+    // the middleware captures the TRANSFORMED response from upstream,
+    // then minifies, compresses, and caches it with a separate "ft/" prefix.
+    // Browser cache uses no-cache (ETag revalidation) because the content
+    // can change when FT plugins are updated without a Jellyfin restart.
 
     /// <summary>
     /// Gets or sets filename patterns (one per line, supports * wildcard) for web assets
-    /// that must NOT be served from JellyShim's cache.  These files are passed through
-    /// to downstream middleware so that File Transformation plugins (Custom Tabs,
-    /// JellyfinEnhanced, etc.) can apply their patches.
+    /// that are patched at runtime by File Transformation plugins (HSS, Custom Tabs,
+    /// JellyfinEnhanced, etc.).  These files are captured AFTER transformation, then
+    /// minified, compressed, and cached separately from pre-built assets.
     /// </summary>
     public string FileTransformationBypassPatterns { get; set; } =
-        "home-html.*.chunk.js\nmain.*.bundle.js";
+        "home*.chunk.js\nmain.*.bundle.js\nruntime.bundle.js\nuser-plugin*.chunk.js";
 }

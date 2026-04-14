@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jellyfin.Plugin.JellyShim.Api;
 
 /// <summary>
-/// Serves localization JSON files for the plugin config page.
-/// To add a language, create Localization/{code}.json as an EmbeddedResource.
+/// REST API controller that serves localization JSON files for the plugin config page.
+/// Translation files are embedded as assembly resources (Localization/{code}.json).
+/// To add a new language, create the JSON file and mark it as an EmbeddedResource in the csproj.
+/// Sanitizes the language code to prevent path traversal (letters only, max 5 chars).
 /// </summary>
 [ApiController]
 [Route("JellyShim/Localization")]
