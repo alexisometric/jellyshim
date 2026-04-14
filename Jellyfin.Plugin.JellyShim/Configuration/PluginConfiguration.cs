@@ -186,7 +186,7 @@ public class PluginConfiguration : BasePluginConfiguration
     /// These paths get plugin-level caching + compression.
     /// </summary>
     public string PluginAssetPaths { get; set; } =
-        "/JellyTweaks/\n/MediaBarEnhanced/\n/Plugins/Announcements/\n/JellyfinEnhanced/\n/JavaScriptInjector/";
+        "/HomeScreen/\n/JellyTweaks/\n/MediaBarEnhanced/\n/Plugins/Announcements/\n/JellyfinEnhanced/\n/JavaScriptInjector/";
 
     // ── File Transformation Compatibility ───────────────────────────
     // Filename patterns for web assets patched at runtime by File Transformation

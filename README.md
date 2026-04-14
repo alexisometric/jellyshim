@@ -237,11 +237,19 @@ Since v1.0.7, JellyShim captures, minifies, compresses, and caches **third-party
 **Supports extensionless URLs** — Assets served without file extensions (e.g. `/JellyfinEnhanced/script`) are detected via upstream `Content-Type` header and minified accordingly.
 
 **Pre-configured plugin paths:**
-- JellyTweaks, HomeScreen, MediaBarEnhanced, Announcements, JellyfinEnhanced, JavaScriptInjector
+- HomeScreen, JellyTweaks, MediaBarEnhanced, Announcements, JellyfinEnhanced, JavaScriptInjector
 
 Add your own paths in the admin UI (one per line, e.g. `/MyPlugin/`).
 
-> **Config:** `PluginAssetPaths`
+### File Transformation Compatibility
+
+Plugins like **Home Screen Sections** (HSS), **Custom Tabs**, and **JellyfinEnhanced** use the [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation) plugin to patch Jellyfin's webpack bundles at runtime.
+
+JellyShim detects this automatically: **when any FT bypass patterns are configured, ALL `.chunk.js` and `.bundle.js` files are bypassed from the pre-built cache**. Instead, these files are captured from upstream (after FT has applied its patches), then compressed and cached separately with `no-cache` (forces ETag revalidation on every request).
+
+This means you don't need to manually list every chunk filename — just having the default patterns is enough for full compatibility with any FT-based plugin.
+
+> **Config:** `PluginAssetPaths` · `FileTransformationBypassPatterns`
 
 ---
 
@@ -396,6 +404,18 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 **Per-type settings** — Each with `*MaxWidth` (px) and `*Quality` (1–100):
 
 Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · Logo (400/90) · Thumb (480/75) · Screenshot (1280/75) · Chapter (400/70) · Profile (200/85) · Disc (300/80) · Box (300/80) · BoxRear (300/80) · Default (300/80)
+
+</details>
+
+<details>
+<summary><strong>Plugin Asset Support</strong></summary>
+
+| Property | Type | Default |
+|---|---|---|
+| `PluginAssetPaths` | textarea | HomeScreen, JellyTweaks, MediaBarEnhanced, Announcements, JellyfinEnhanced, JavaScriptInjector |
+| `FileTransformationBypassPatterns` | textarea | `home*.chunk.js`, `main.*.bundle.js`, `runtime.bundle.js`, `user-plugin*.chunk.js` |
+
+**Note:** When any FT patterns are configured, all `.chunk.js` and `.bundle.js` files are automatically bypassed — no need to list every chunk.
 
 </details>
 

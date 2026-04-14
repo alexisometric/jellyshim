@@ -395,7 +395,8 @@
                         <label class="inputLabel inputLabelUnfocused" for="PluginAssetPaths">
                             Known Plugin Paths (one per line)
                         </label>
-                        <textarea id="PluginAssetPaths" is="emby-textarea" rows="6" style="width:100%">/JellyTweaks/
+                        <textarea id="PluginAssetPaths" is="emby-textarea" rows="7" style="width:100%">/HomeScreen/
+/JellyTweaks/
 /MediaBarEnhanced/
 /Plugins/Announcements/
 /JellyfinEnhanced/
@@ -417,7 +418,9 @@ user-plugin*.chunk.js</textarea>
                         <div class="fieldDescription">
                             Filename patterns (wildcard * supported) for web assets patched at runtime by
                             File Transformation plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.).
-                            These files are captured AFTER transformation, then minified, compressed, and cached.
+                            These files are captured AFTER transformation, then compressed and cached.
+                            <strong>Note:</strong> When any patterns are configured, ALL <code>.chunk.js</code> and <code>.bundle.js</code>
+                            files are automatically bypassed from pre-built cache — no need to list every chunk filename.
                             Clear the JellyShim cache after updating these plugins.
                         </div>
                     </div>

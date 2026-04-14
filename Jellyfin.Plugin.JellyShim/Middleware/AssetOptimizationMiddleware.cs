@@ -1159,6 +1159,18 @@ public class AssetOptimizationMiddleware
         }
 
         var fileName = Path.GetFileName(relativePath);
+
+        // When FT plugins are in use (any patterns configured), ALL webpack chunk/bundle
+        // files are potentially patched at runtime. Pre-caching these from disk would
+        // serve the original unpatched content, bypassing FT patches entirely.
+        // This catches HSS, Custom Tabs, JellyfinEnhanced, etc. regardless of the
+        // specific chunk filename (which changes between Jellyfin versions).
+        if (fileName.EndsWith(".chunk.js", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".bundle.js", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         foreach (var pattern in _cachedBypassPatterns!)
         {
             if (WildcardMatch(fileName, pattern))

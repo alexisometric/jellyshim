@@ -192,6 +192,15 @@ public class AssetProcessor
 
         var patterns = config.FileTransformationBypassPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var fileName = Path.GetFileName(relativePath);
+
+        // When FT plugins are in use, ALL webpack chunk/bundle files are potentially
+        // patched at runtime — skip them from pre-built cache.
+        if (fileName.EndsWith(".chunk.js", StringComparison.OrdinalIgnoreCase) ||
+            fileName.EndsWith(".bundle.js", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         foreach (var pattern in patterns)
         {
             var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
