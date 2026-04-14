@@ -16,11 +16,13 @@ Out of the box, Jellyfin serves uncompressed web assets, full-resolution images,
 
 JellyShim fixes all of that in one plugin — no configuration needed:
 
-- **60–90 % smaller assets** — JS/CSS minification + Brotli/Gzip pre-compression
+- **60–90 % smaller assets** — JS/CSS/SVG minification + Brotli/Zstd/Gzip pre-compression
 - **50–80 % smaller images** — native resizing + AVIF/WebP conversion (opt-in)
 - **Instant repeat visits** — intelligent disk caching with ETag + 304 Not Modified support
-- **Faster first paint** — HTTP `Link` modulepreload and font preload headers
-- **Third-party plugin assets** — JS/CSS from JellyTweaks, JellyfinEnhanced, etc. get the same full pipeline
+- **Faster first paint** — HTTP `Link` modulepreload, font preload, and preconnect headers
+- **Third-party plugin assets** — JS/CSS/SVG from JellyTweaks, JellyfinEnhanced, etc. get the same full pipeline
+- **Live performance dashboard** — real-time cache hit/miss rates, bytes served/saved, per-category stats
+- **12 languages** — Admin UI fully translated (EN, FR, DE, ES, IT, PT, NL, PL, RU, JA, KO, ZH)
 
 **Install → Restart → Done.** Most optimizations are on by default. Nothing on disk is modified — disable the plugin and everything reverts instantly.
 
@@ -78,47 +80,51 @@ Whether it's a typo fix, a new optimization, or a performance tweak — every co
 
 | # | Feature | Default | What it does |
 |---|---|:---:|---|
-| 1 | [JS/CSS Minification](#1--jscss-minification) | ✅ On | Strips whitespace, comments, shortens names |
-| 2 | [Brotli/Gzip Pre-compression](#2--brotligzip-pre-compression) | ✅ On | Pre-compresses all text assets to disk cache |
+| 1 | [JS/CSS/SVG Minification](#1--jscsssvg-minification) | ✅ On | Strips whitespace, comments, shortens names, cleans SVG metadata |
+| 2 | [Brotli/Zstd/Gzip Pre-compression](#2--brotlizstdgzip-pre-compression) | ✅ On | Pre-compresses all text assets to disk cache |
 | 3 | [Native Image Optimization](#3--native-image-optimization) | ❌ Off | Resize + re-encode every Jellyfin image in-process (AVIF/WebP/JPEG) |
 | 4 | [Smart Cache Headers](#4--smart-cache-headers) | ✅ On | Optimal Cache-Control per asset type |
-| 5 | [Link Preload Headers](#5--link-preload-headers) | ✅ On | HTTP Link headers for fonts and JS |
+| 5 | [Link Preload Headers](#5--link-preload-headers) | ✅ On | HTTP Link headers for fonts, JS, and preconnect |
 | 6 | [CORS / CORP Headers](#6--cors--corp-headers) | ✅ On | Cross-Origin-Resource-Policy for iframe embedding |
-| 7 | [Security Headers](#7--security-headers) | ❌ Off | X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
+| 7 | [Security Headers](#7--security-headers) | ❌ Off | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
 | 8 | [Plugin Asset Support](#8--plugin-asset-support) | ✅ On | On-the-fly minification + compression for community plugin assets |
 | 9 | [Cache Management](#9--cache-management) | — | Clear Cache button + scheduled task |
+| 10 | [Performance Dashboard](#10--performance-dashboard) | ✅ On | Live cache/compression stats in the admin UI + REST API |
+| 11 | [Localization](#11--localization) | ✅ On | Admin UI in 12 languages |
 
 ---
 
-## 1 · JS/CSS Minification
+## 1 · JS/CSS/SVG Minification
 
-Uses [NUglify](https://github.com/trullock/NUglify) to minify JavaScript and CSS.
+Uses [NUglify](https://github.com/trullock/NUglify) to minify JavaScript and CSS, and a built-in regex-based SVG optimizer.
 
 - **Pre-built assets** (under `/web/`) are minified during the startup scan
 - **Plugin assets** (JellyTweaks, JellyfinEnhanced, etc.) are minified on-the-fly on first request
+- **SVG optimization** — Removes XML comments, declarations, `<!DOCTYPE>`, `<metadata>`, editor-specific elements (Inkscape, Illustrator, Sketch), empty `id` attributes, and collapses whitespace
 - **Extensionless URLs** (e.g. `/JellyfinEnhanced/script`) are detected via Content-Type sniffing
 - Automatically skips already-minified files (heuristic: < 1 % newlines)
 - Falls back to original on any parse error — never breaks assets
 
-> **Config:** `EnableMinification` · default `true`
+> **Config:** `EnableMinification` (default `true`) · `EnableSvgMinification` (default `true`)
 
 ---
 
-## 2 · Brotli/Gzip Pre-compression
+## 2 · Brotli/Zstd/Gzip Pre-compression
 
 All compressible assets (`.js`, `.css`, `.html`, `.json`, `.svg`, `.xml`, `.txt`, `.map`, `.mjs`) are pre-compressed at server startup and stored in a disk cache. Requests are served with zero runtime compression cost.
 
 ```
 Original asset: 450 KB
 ├── Brotli (q11):  52 KB  (-88 %)
+├── Zstd:          58 KB  (-87 %)
 └── Gzip:          68 KB  (-85 %)
 ```
 
-- **Accept-Encoding negotiation** — Serves Brotli when supported, Gzip fallback, raw as last resort
+- **Accept-Encoding negotiation** — Serves Brotli when supported, Zstd as second choice, Gzip fallback, raw as last resort
 - **Configurable quality** — Brotli level 0–11 (default 11 = maximum compression)
 - **Scheduled re-processing** — Runs at startup + every day at 4 AM
 
-> **Config:** `EnableCompression` · `BrotliCompressionLevel` (0–11, default `11`)
+> **Config:** `EnableCompression` · `EnableZstdCompression` (default `true`) · `BrotliCompressionLevel` (0–11, default `11`)
 
 ---
 
@@ -195,8 +201,9 @@ Adds HTTP `Link` headers that trigger the browser to start fetching critical res
 
 - **Fonts** → `Link: </web/font.woff2>; rel=preload; as=font; type=font/woff2; crossorigin`
 - **JavaScript** → `Link: </web/main.js>; rel=modulepreload`
+- **Preconnect** → `Link: <https://example.com>; rel=preconnect` — Tells the browser to open TCP + TLS connections to external origins early (useful for third-party APIs, CDNs, etc.)
 
-> **Config:** `EnableFontPreloadHeaders` · `EnableJsModulepreloadHeaders`
+> **Config:** `EnableFontPreloadHeaders` · `EnableJsModulepreloadHeaders` · `EnablePreconnectHeaders` (default `false`) · `PreconnectOrigins` (one per line)
 
 ---
 
@@ -215,13 +222,18 @@ Adds `Cross-Origin-Resource-Policy` to all static assets and images:
 
 Optional hardening headers for security-conscious deployments:
 
-| Header | Default Value |
-|---|---|
-| `X-Content-Type-Options` | `nosniff` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Permissions-Policy` | `accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()` |
+| Header | Default | Default Value |
+|---|:---:|---|
+| `X-Content-Type-Options` | ✅ | `nosniff` |
+| `Referrer-Policy` | ✅ | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | ✅ | `accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()` |
+| `Strict-Transport-Security` (HSTS) | ❌ | `max-age=31536000; includeSubDomains` |
+| `Content-Security-Policy` (CSP) | ❌ | `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; ...` |
+| `X-Frame-Options` | ❌ | `SAMEORIGIN` |
 
-> **Config:** `EnableSecurityHeaders` (default `false`) · `XContentTypeOptions` · `ReferrerPolicy` · `PermissionsPolicy`
+**Note:** HSTS, CSP, and X-Frame-Options each have their own toggle and are disabled by default. The basic trio (X-Content-Type-Options, Referrer-Policy, Permissions-Policy) is controlled by the main `EnableSecurityHeaders` toggle.
+
+> **Config:** `EnableSecurityHeaders` (default `false`) · `EnableHsts` (default `false`) · `HstsMaxAge` · `HstsIncludeSubDomains` · `EnableContentSecurityPolicy` (default `false`) · `ContentSecurityPolicy` · `EnableXFrameOptions` (default `false`) · `XFrameOptionsValue`
 
 ---
 
@@ -230,7 +242,7 @@ Optional hardening headers for security-conscious deployments:
 Since v1.0.7, JellyShim captures, minifies, compresses, and caches **third-party plugin assets on the fly** — the same full pipeline that web assets get.
 
 **How it works for JS/CSS:**
-1. First request: intercepts the upstream response, minifies with NUglify, compresses Brotli + Gzip, caches all 3 variants (raw/br/gz) to disk
+1. First request: intercepts the upstream response, minifies with NUglify, compresses Brotli + Zstd + Gzip, caches all variants (raw/br/zstd/gz) to disk
 2. Subsequent requests: served directly from disk cache with ETag/304 support
 3. Non-JS/CSS plugin assets (images, fonts, etc.) get optimized cache headers only
 
@@ -262,6 +274,45 @@ All optimized assets (pre-compressed web assets, on-the-fly plugin assets, proce
 
 Clearing the cache forces re-optimization on next access. Useful after plugin updates or to reclaim disk space.
 
+### REST API
+
+JellyShim exposes admin-only API endpoints for automation and monitoring:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/JellyShim/CacheStats` | Cache file counts and sizes, per-prefix breakdown |
+| `GET` | `/JellyShim/PerformanceStats` | Hit/miss rates, bytes served/saved, per-category counts |
+| `POST` | `/JellyShim/PerformanceStats/Reset` | Reset all performance counters |
+| `DELETE` | `/JellyShim/Cache/{prefix}` | Clear cache for a specific prefix (`plugin`, `ft`, `img`, `raw`, `br`, `gz`, `zstd`) |
+| `GET` | `/JellyShim/ImageStatus` | AVIF support status, ffmpeg path, AV1 encoder info |
+| `GET` | `/JellyShim/Localization/{lang}` | Translation strings for the admin UI |
+
+All endpoints except Localization require administrator privileges (`RequiresElevation`).
+
+---
+
+## 10 · Performance Dashboard
+
+The admin config page includes a live performance dashboard showing real-time statistics:
+
+- **Cache hit/miss rate** — Percentage and total counts
+- **Bytes served from cache** — Total data served directly from disk
+- **Bytes saved by compression** — Bandwidth saved by serving compressed variants
+- **Per-category request counts** — Web assets, plugin assets, File Transformation assets, images
+- **304 Not Modified responses** — Requests avoided by ETag matching
+
+All counters are thread-safe (atomic operations) and persist for the Jellyfin process lifetime. Reset via the dashboard or the REST API.
+
+---
+
+## 11 · Localization
+
+The admin configuration page is fully translated into **12 languages**:
+
+🇬🇧 English · 🇫🇷 French · 🇩🇪 German · 🇪🇸 Spanish · 🇮🇹 Italian · 🇵🇹 Portuguese · 🇳🇱 Dutch · 🇵🇱 Polish · 🇷🇺 Russian · 🇯🇵 Japanese · 🇰🇷 Korean · 🇨🇳 Chinese
+
+The language is auto-detected from the browser. Translation files are embedded resources served via the `/JellyShim/Localization/{lang}` API.
+
 ---
 
 ## 🏗️ Architecture
@@ -289,7 +340,7 @@ Client Request
 │                                  │
 │  → Classify: web / plugin /     │
 │    font / API / other            │
-│  → Serve Brotli/Gzip from cache │
+│  → Serve Brotli/Zstd/Gzip cache│
 │  → Plugin JS/CSS: capture,      │
 │    minify, compress, cache       │
 │  → Add Cache-Control, ETag,     │
@@ -307,7 +358,7 @@ Client Request
 
 | Task | Triggers | Purpose |
 |---|---|---|
-| **Optimize Web Assets** | Startup + daily 4 AM | Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli + Gzip → cache to disk |
+| **Optimize Web Assets** | Startup + daily 4 AM | Pre-processes all `/web/` assets: minify → transform HTML → compress Brotli + Zstd + Gzip → cache to disk |
 | **Clear Cache** | Manual only | Clears all cached optimized assets; re-optimization happens on next access |
 
 ### Disk Cache Structure
@@ -316,6 +367,7 @@ Client Request
 {JellyfinCachePath}/jellyshim/
 ├── raw/     Minified but uncompressed assets
 ├── br/      Brotli-compressed assets
+├── zstd/    Zstandard-compressed assets
 ├── gz/      Gzip-compressed assets
 └── img/     Processed & cached images
 ```
@@ -340,7 +392,9 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | Property | Type | Default |
 |---|---|---|
 | `EnableMinification` | bool | `true` |
+| `EnableSvgMinification` | bool | `true` |
 | `EnableCompression` | bool | `true` |
+| `EnableZstdCompression` | bool | `true` |
 | `BrotliCompressionLevel` | int (0–11) | `11` |
 
 </details>
@@ -367,6 +421,8 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 |---|---|---|
 | `EnableFontPreloadHeaders` | bool | `true` |
 | `EnableJsModulepreloadHeaders` | bool | `true` |
+| `EnablePreconnectHeaders` | bool | `false` |
+| `PreconnectOrigins` | textarea | _(empty)_ |
 
 </details>
 
@@ -389,6 +445,13 @@ After installation, go to **Dashboard → Plugins → JellyShim**.
 | `XContentTypeOptions` | string | `nosniff` |
 | `ReferrerPolicy` | string | `strict-origin-when-cross-origin` |
 | `PermissionsPolicy` | string | Restricts camera, mic, geolocation, etc. |
+| `EnableHsts` | bool | `false` |
+| `HstsMaxAge` | seconds | `31536000` (1 year) |
+| `HstsIncludeSubDomains` | bool | `true` |
+| `EnableContentSecurityPolicy` | bool | `false` |
+| `ContentSecurityPolicy` | string | `default-src 'self'; script-src 'self' 'unsafe-inline'; ...` |
+| `EnableXFrameOptions` | bool | `false` |
+| `XFrameOptionsValue` | string | `SAMEORIGIN` |
 
 </details>
 
@@ -429,7 +492,7 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 - **Image size limit** — Rejects images larger than 50 MB before processing
 - **Plugin asset size limit** — Responses larger than 2 MB are not captured
 - **Upstream decompression safety net** — If upstream middleware compresses despite `Accept-Encoding` stripping, JellyShim decompresses before minification to avoid corruption
-- **Optional security headers** — Referrer-Policy, Permissions-Policy, X-Content-Type-Options
+- **Optional security headers** — HSTS, CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy, X-Content-Type-Options
 
 ---
 
@@ -461,6 +524,7 @@ Primary (600/80) · Backdrop (1920/75) · Art (1280/75) · Banner (1000/80) · L
 |---|---|---|
 | [NUglify](https://github.com/trullock/NUglify) | 1.21.17 | JS/CSS minification |
 | [SixLabors.ImageSharp](https://sixlabors.com/products/imagesharp/) | 3.1.12 | Native image resizing & encoding |
+| [ZstdSharp.Port](https://github.com/oleg-st/ZstdSharp) | 0.8.5 | Zstandard compression |
 | ffmpeg (libaom-av1) | bundled | AVIF encoding (uses Jellyfin's bundled ffmpeg — zero install) |
 
 ---
@@ -533,11 +597,13 @@ Par défaut, Jellyfin sert ses fichiers web sans compression, ses images en plei
 
 JellyShim corrige tout ça en un seul plugin — aucune configuration requise :
 
-- **60–90 % de fichiers en moins** — Minification JS/CSS + pré-compression Brotli/Gzip
+- **60–90 % de fichiers en moins** — Minification JS/CSS + pré-compression Brotli/Zstd/Gzip
 - **50–80 % d'images en moins** — Redimensionnement natif + conversion AVIF/WebP (optionnel)
 - **Visites répétées instantanées** — Cache disque intelligent avec ETag + support 304 Not Modified
-- **Premier affichage plus rapide** — En-têtes HTTP `Link` modulepreload et preload pour les polices
-- **Assets de plugins tiers** — Le JS/CSS de JellyTweaks, JellyfinEnhanced, etc. bénéficie du même pipeline complet
+- **Premier affichage plus rapide** — En-têtes HTTP `Link` modulepreload, preload polices et preconnect
+- **Assets de plugins tiers** — Le JS/CSS/SVG de JellyTweaks, JellyfinEnhanced, etc. bénéficie du même pipeline complet
+- **Tableau de bord en temps réel** — Taux de cache hit/miss, octets servis/économisés, stats par catégorie
+- **12 langues** — Interface d'administration entièrement traduite (EN, FR, DE, ES, IT, PT, NL, PL, RU, JA, KO, ZH)
 
 **Installer → Redémarrer → C'est fait.** La plupart des optimisations sont activées par défaut. Aucun fichier n'est modifié sur le disque — désactivez le plugin et tout revient à la normale instantanément.
 
@@ -569,15 +635,17 @@ JellyShim corrige tout ça en un seul plugin — aucune configuration requise :
 
 | # | Fonctionnalité | Par défaut | Description |
 |---|---|:---:|---|
-| 1 | Minification JS/CSS | ✅ Activé | Supprime les espaces, commentaires, raccourcit les noms de variables |
-| 2 | Pré-compression Brotli/Gzip | ✅ Activé | Pré-compresse tous les assets texte dans un cache disque |
+| 1 | Minification JS/CSS/SVG | ✅ Activé | Supprime les espaces, commentaires, raccourcit les noms, nettoie les métadonnées SVG |
+| 2 | Pré-compression Brotli/Zstd/Gzip | ✅ Activé | Pré-compresse tous les assets texte dans un cache disque |
 | 3 | Optimisation d'images | ❌ Désactivé | Redimensionne + ré-encode chaque image Jellyfin (AVIF/WebP/JPEG) |
 | 4 | En-têtes de cache intelligents | ✅ Activé | `Cache-Control` optimal selon le type d'asset |
-| 5 | En-têtes Link preload | ✅ Activé | En-têtes HTTP `Link` pour les polices et le JavaScript |
+| 5 | En-têtes Link preload | ✅ Activé | En-têtes HTTP `Link` pour les polices, le JavaScript et preconnect |
 | 6 | En-têtes CORS / CORP | ✅ Activé | `Cross-Origin-Resource-Policy` pour l'intégration en iframe |
-| 7 | En-têtes de sécurité | ❌ Désactivé | `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` |
+| 7 | En-têtes de sécurité | ❌ Désactivé | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
 | 8 | Support des plugins tiers | ✅ Activé | Minification + compression à la volée pour les assets de plugins communautaires |
 | 9 | Gestion du cache | — | Bouton de vidage du cache + tâche planifiée |
+| 10 | Tableau de bord performances | ✅ Activé | Stats cache/compression en temps réel dans l'UI admin + API REST |
+| 11 | Localisation | ✅ Activé | Interface d'administration en 12 langues |
 
 ### Sécurité
 
