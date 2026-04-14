@@ -91,12 +91,29 @@ public class ImageProcessor
     /// <param name="maxWidth">Maximum output width in pixels. 0 = no resize.</param>
     /// <param name="quality">Output quality (1-100).</param>
     /// <param name="format">Output format: "avif", "webp", or "jpeg".</param>
-    /// <returns>Processed image bytes.</returns>
-    public byte[] Process(byte[] input, int maxWidth, int quality, string format)
+    /// <returns>Processed image bytes and the actual output format used
+    /// (may differ from requested format if alpha fallback occurred).</returns>
+    public (byte[] Data, string Format) Process(byte[] input, int maxWidth, int quality, string format)
     {
         if (input.Length == 0)
         {
-            return input;
+            return (input, format);
+        }
+
+        // Safety net: AVIF (yuv420p) discards alpha transparency.
+        // If the image has an alpha channel (32bpp), fall back to WebP.
+        // The middleware already forces WebP for known-transparent types (Logo, Art),
+        // but this catches edge cases (e.g. transparent Primary/Thumb images).
+        if (format.Equals("avif", StringComparison.OrdinalIgnoreCase))
+        {
+            var info = Image.Identify(input);
+            if (info?.PixelType.BitsPerPixel > 24)
+            {
+                _logger.LogDebug(
+                    "[JellyShim] Alpha channel detected ({Bpp}bpp), falling back to WebP instead of AVIF",
+                    info.PixelType.BitsPerPixel);
+                format = "webp";
+            }
         }
 
         using var image = Image.Load(input);
@@ -148,7 +165,7 @@ public class ImageProcessor
             format,
             quality);
 
-        return result;
+        return (result, format);
     }
 
     /// <summary>

@@ -843,22 +843,13 @@ public class AssetOptimizationMiddleware
                 context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
             }
 
-            // Minify JS or CSS
+            // Skip minification for FT-bypassed files — they are already webpack-minified
+            // production bundles, and NUglify can break runtime-patched code injected by
+            // File Transformation plugins (HSS loadSections generator, Custom Tabs, etc.).
+            // Compression alone provides the majority of transfer size savings.
             byte[] optimized = rawBytes;
-            if (config.EnableMinification)
-            {
-                if (ext.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-                    ext.Equals(".mjs", StringComparison.OrdinalIgnoreCase))
-                {
-                    optimized = _jsTransformer.MinifyBytes(rawBytes);
-                }
-                else if (ext.Equals(".css", StringComparison.OrdinalIgnoreCase))
-                {
-                    optimized = _cssTransformer.MinifyBytes(rawBytes);
-                }
-            }
 
-            // Cache raw minified version
+            // Cache raw version (no minification for FT files)
             _cache.Store(cacheKey, "raw", optimized);
 
             // Compress and cache both variants

@@ -114,7 +114,7 @@ public partial class ImageOptimizationMiddleware
         var (maxWidth, quality) = GetImageSettings(imageType, config);
         quality = Math.Clamp(quality, 1, 100);
         maxWidth = Math.Max(0, maxWidth);
-        var format = NegotiateFormat(request, config);
+        var format = NegotiateFormat(request, config, imageType);
 
         // Build cache key from path + query + processing parameters
         var cacheKey = BuildCacheKey(path, request.QueryString.Value, maxWidth, quality, format);
@@ -154,7 +154,16 @@ public partial class ImageOptimizationMiddleware
             byte[] processed;
             try
             {
-                processed = _imageProcessor.Process(originalBytes, maxWidth, quality, format);
+                var result = _imageProcessor.Process(originalBytes, maxWidth, quality, format);
+                processed = result.Data;
+
+                // Alpha detection may have changed format (avif → webp).
+                // Update format + cache key so Content-Type and cache are correct.
+                if (!string.Equals(result.Format, format, StringComparison.OrdinalIgnoreCase))
+                {
+                    format = result.Format;
+                    cacheKey = BuildCacheKey(path, request.QueryString.Value, maxWidth, quality, format);
+                }
             }
             catch (Exception ex)
             {
@@ -287,11 +296,31 @@ public partial class ImageOptimizationMiddleware
     ///
     /// <para>AVIF support is probed once at startup by <see cref="ImageProcessor.ProbeAvifSupport"/>.
     /// On systems without ffmpeg or without libaom-av1, AVIF is silently skipped.</para>
+    ///
+    /// <para><b>Alpha transparency:</b> AVIF encoding uses yuv420p which discards alpha.
+    /// Image types known to carry transparency (Logo, Art) are forced to WebP to
+    /// preserve transparent backgrounds. Other types use AVIF when available.</para>
     /// </summary>
-    private string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config)
+    private string NegotiateFormat(HttpRequest request, Configuration.PluginConfiguration config, string imageType)
     {
         var accept = request.Headers.Accept.ToString();
         var preferred = config.ImageOutputFormat.ToLowerInvariant();
+
+        // Logo and Art images are typically transparent PNGs (clearlogo, clearart).
+        // AVIF encoding (yuv420p) strips alpha → ugly black/wrong backgrounds.
+        // Force WebP for these types — it preserves alpha with good compression.
+        // Additional safety: ImageProcessor.Process() also detects alpha at pixel level
+        // for any image type not listed here.
+        var isTransparentType = imageType.Equals("Logo", StringComparison.OrdinalIgnoreCase) ||
+                                imageType.Equals("Art", StringComparison.OrdinalIgnoreCase) ||
+                                imageType.Equals("Disc", StringComparison.OrdinalIgnoreCase) ||
+                                imageType.Equals("Box", StringComparison.OrdinalIgnoreCase) ||
+                                imageType.Equals("BoxRear", StringComparison.OrdinalIgnoreCase);
+
+        if (isTransparentType && accept.Contains("image/webp", StringComparison.OrdinalIgnoreCase))
+        {
+            return "webp";
+        }
 
         if (preferred == "avif" &&
             accept.Contains("image/avif", StringComparison.OrdinalIgnoreCase) &&
