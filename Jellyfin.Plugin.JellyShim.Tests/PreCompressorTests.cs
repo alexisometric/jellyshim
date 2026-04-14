@@ -3,6 +3,7 @@ using System.Text;
 using Jellyfin.Plugin.JellyShim.Optimization;
 using Microsoft.Extensions.Logging;
 using Moq;
+using ZstdSharp;
 
 namespace Jellyfin.Plugin.JellyShim.Tests;
 
@@ -161,5 +162,49 @@ public class PreCompressorTests
             decompressor.CopyTo(output);
             return output.ToArray();
         }
+    }
+
+    // ── Zstd compression ──────────────────────────────────────────
+
+    [Fact]
+    public void CompressZstd_ProducesValidZstd()
+    {
+        var original = Encoding.UTF8.GetBytes("Hello, this is a test of Zstandard compression!");
+
+        var compressed = _compressor.CompressZstd(original);
+
+        Assert.NotEmpty(compressed);
+
+        // Decompress and verify roundtrip
+        using var decompressor = new Decompressor();
+        var decompressed = decompressor.Unwrap(compressed).ToArray();
+        Assert.Equal(original, decompressed);
+    }
+
+    [Fact]
+    public void CompressZstd_EmptyInput_ReturnsNonEmpty()
+    {
+        var compressed = _compressor.CompressZstd(Array.Empty<byte>());
+
+        Assert.NotEmpty(compressed);
+
+        using var decompressor = new Decompressor();
+        var decompressed = decompressor.Unwrap(compressed).ToArray();
+        Assert.Empty(decompressed);
+    }
+
+    [Fact]
+    public void CompressZstd_LargeInput_Compresses()
+    {
+        var original = Encoding.UTF8.GetBytes(new string('z', 10_000));
+
+        var compressed = _compressor.CompressZstd(original);
+
+        Assert.True(compressed.Length < original.Length,
+            $"Expected compression: {compressed.Length} < {original.Length}");
+
+        using var decompressor = new Decompressor();
+        var decompressed = decompressor.Unwrap(compressed).ToArray();
+        Assert.Equal(original, decompressed);
     }
 }

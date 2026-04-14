@@ -268,4 +268,33 @@ public class DiskCacheManager
 
         return (files.Length, totalBytes);
     }
+
+    /// <summary>
+    /// Gets cache statistics broken down by encoding sub-directory (raw, br, gz, zstd, meta, img).
+    /// Returns a dictionary mapping sub-directory name to (FileCount, TotalBytes).
+    /// </summary>
+    public Dictionary<string, object> GetCacheStatsByPrefix()
+    {
+        var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+        if (!Directory.Exists(_cacheRoot))
+        {
+            return result;
+        }
+
+        foreach (var dir in Directory.GetDirectories(_cacheRoot))
+        {
+            var name = Path.GetFileName(dir);
+            var files = Directory.GetFiles(dir, "*", SearchOption.AllDirectories);
+            long totalBytes = 0;
+            foreach (var file in files)
+            {
+                totalBytes += new FileInfo(file).Length;
+            }
+
+            result[name] = new { FileCount = files.Length, TotalBytes = totalBytes };
+        }
+
+        return result;
+    }
 }

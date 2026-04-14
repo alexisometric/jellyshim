@@ -50,6 +50,7 @@ public class AssetProcessor
     private readonly PreCompressor _compressor;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
+    private readonly SvgTransformer _svgTransformer;
     private readonly ILogger<AssetProcessor> _logger;
 
     /// <summary>
@@ -60,12 +61,14 @@ public class AssetProcessor
         PreCompressor compressor,
         JsTransformer jsTransformer,
         CssTransformer cssTransformer,
+        SvgTransformer svgTransformer,
         ILogger<AssetProcessor> logger)
     {
         _cache = cache;
         _compressor = compressor;
         _jsTransformer = jsTransformer;
         _cssTransformer = cssTransformer;
+        _svgTransformer = svgTransformer;
         _logger = logger;
     }
 
@@ -128,6 +131,12 @@ public class AssetProcessor
                     processed = MinifyContent(processed, ext);
                 }
 
+                // SVG minification (independent of JS/CSS minification toggle)
+                if (config.EnableSvgMinification && ext.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+                {
+                    processed = _svgTransformer.MinifyBytes(processed);
+                }
+
                 // Store the raw optimized version (for ETag computation and non-compressed serving)
                 await _cache.StoreAsync(relativePath, "raw", processed, cancellationToken).ConfigureAwait(false);
 
@@ -137,6 +146,12 @@ public class AssetProcessor
                     var (brotli, gzip) = _compressor.CompressBoth(processed, config.BrotliCompressionLevel);
                     await _cache.StoreAsync(relativePath, "br", brotli, cancellationToken).ConfigureAwait(false);
                     await _cache.StoreAsync(relativePath, "gz", gzip, cancellationToken).ConfigureAwait(false);
+
+                    if (config.EnableZstdCompression)
+                    {
+                        var zstd = _compressor.CompressZstd(processed);
+                        await _cache.StoreAsync(relativePath, "zstd", zstd, cancellationToken).ConfigureAwait(false);
+                    }
 
                     stats.TotalOriginalBytes += originalSize;
                     stats.TotalBrotliBytes += brotli.Length;

@@ -3,6 +3,1448 @@
 <head>
     <meta charset="utf-8" />
     <title>JellyShim</title>
+    <style>
+        /* ═══ JellyShim Design System ═══ */
+        :root {
+            --js-bg-card: rgba(255,255,255,0.04);
+            --js-bg-card-hover: rgba(255,255,255,0.06);
+            --js-bg-elevated: rgba(255,255,255,0.07);
+            --js-border: rgba(255,255,255,0.08);
+            --js-border-accent: rgba(255,255,255,0.12);
+            --js-text-primary: rgba(255,255,255,0.92);
+            --js-text-secondary: rgba(255,255,255,0.6);
+            --js-text-muted: rgba(255,255,255,0.4);
+            --js-accent: #00b4d8;
+            --js-accent-dim: rgba(0,180,216,0.15);
+            --js-green: #4caf50;
+            --js-green-dim: rgba(76,175,80,0.12);
+            --js-orange: #ff9800;
+            --js-orange-dim: rgba(255,152,0,0.12);
+            --js-purple: #9c27b0;
+            --js-purple-dim: rgba(156,39,176,0.12);
+            --js-red: #ef5350;
+            --js-red-dim: rgba(239,83,80,0.12);
+            --js-blue: #42a5f5;
+            --js-blue-dim: rgba(66,165,245,0.12);
+            --js-radius: 10px;
+            --js-radius-sm: 6px;
+        }
+
+        /* ── Page header ── */
+        .js-page-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 24px 0 20px;
+            border-bottom: 1px solid var(--js-border);
+            margin-bottom: 28px;
+        }
+        .js-page-header-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--js-accent), #0077b6);
+            color: #fff;
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        .js-page-header h1 {
+            margin: 0;
+            font-size: 1.6em;
+            font-weight: 700;
+            color: var(--js-text-primary);
+            letter-spacing: -0.02em;
+        }
+        .js-page-header p {
+            margin: 2px 0 0;
+            font-size: 0.88em;
+            color: var(--js-text-secondary);
+        }
+
+        /* ── Section card ── */
+        .js-card {
+            background: var(--js-bg-card);
+            border: 1px solid var(--js-border);
+            border-radius: var(--js-radius);
+            padding: 20px 24px 24px;
+            margin-bottom: 20px;
+            transition: border-color 0.2s;
+        }
+        .js-card:hover {
+            border-color: var(--js-border-accent);
+        }
+        .js-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--js-border);
+        }
+        .js-card-header .material-icons {
+            font-size: 22px;
+            color: var(--js-accent);
+            opacity: 0.85;
+        }
+        .js-card-header h2 {
+            margin: 0;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--js-text-primary);
+        }
+        .js-card-header .js-badge {
+            margin-left: auto;
+            font-size: 0.72em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--js-accent-dim);
+            color: var(--js-accent);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Form elements refinements ── */
+        .js-card .checkboxContainer {
+            padding: 6px 0;
+        }
+        .js-card .inputContainer {
+            margin-top: 4px;
+        }
+        .js-card .fieldDescription {
+            font-size: 0.82em;
+            line-height: 1.5;
+            color: var(--js-text-muted);
+        }
+
+        /* ── Collapsible advanced sections ── */
+        .js-collapsible {
+            margin-top: 12px;
+        }
+        .js-collapsible summary {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            color: var(--js-text-secondary);
+            padding: 8px 12px;
+            background: var(--js-bg-elevated);
+            border-radius: var(--js-radius-sm);
+            user-select: none;
+            list-style: none;
+            transition: color 0.15s;
+        }
+        .js-collapsible summary::-webkit-details-marker { display: none; }
+        .js-collapsible summary::before {
+            content: 'expand_more';
+            font-family: 'Material Icons';
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+        .js-collapsible[open] summary::before {
+            transform: rotate(180deg);
+        }
+        .js-collapsible summary:hover {
+            color: var(--js-text-primary);
+        }
+        .js-collapsible > div {
+            padding: 12px 0 0;
+        }
+
+        /* ── Info / status boxes ── */
+        .js-info-box {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: var(--js-radius-sm);
+            margin-bottom: 16px;
+        }
+        .js-info-box-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .js-info-box strong {
+            display: block;
+            font-size: 0.9em;
+            margin-bottom: 4px;
+        }
+        .js-info-box p {
+            margin: 0;
+            font-size: 0.82em;
+            line-height: 1.55;
+            color: var(--js-text-secondary);
+        }
+        .js-info-success {
+            background: var(--js-green-dim);
+            border: 1px solid rgba(76,175,80,0.2);
+        }
+        .js-info-success .js-info-box-icon,
+        .js-info-success strong { color: var(--js-green); }
+        .js-info-warning {
+            background: var(--js-orange-dim);
+            border: 1px solid rgba(255,152,0,0.2);
+        }
+        .js-info-warning .js-info-box-icon,
+        .js-info-warning strong { color: var(--js-orange); }
+        .js-info-neutral {
+            background: var(--js-bg-elevated);
+            border: 1px solid var(--js-border);
+        }
+        .js-info-neutral .js-info-box-icon { color: var(--js-text-muted); }
+
+        /* ── Stats dashboard ── */
+        .js-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .js-stat-card {
+            background: var(--js-bg-elevated);
+            border: 1px solid var(--js-border);
+            border-radius: var(--js-radius-sm);
+            padding: 14px 12px;
+            text-align: center;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .js-stat-card:hover {
+            transform: translateY(-1px);
+            border-color: var(--js-border-accent);
+        }
+        .js-stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            line-height: 1.2;
+            font-variant-numeric: tabular-nums;
+        }
+        .js-stat-label {
+            font-size: 0.75em;
+            color: var(--js-text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 500;
+        }
+        .js-stat-mini {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .js-stat-mini .js-stat-value {
+            font-size: 1em;
+        }
+        .js-stat-mini .js-stat-label {
+            margin-top: 0;
+            font-size: 0.78em;
+            text-transform: none;
+        }
+
+        /* ── Table improvements ── */
+        .js-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.92em;
+        }
+        .js-table thead th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--js-text-muted);
+            border-bottom: 1px solid var(--js-border-accent);
+        }
+        .js-table tbody td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--js-border);
+            vertical-align: middle;
+        }
+        .js-table tbody tr:hover td {
+            background: var(--js-bg-card-hover);
+        }
+        .js-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .js-table .js-img-type-name {
+            font-weight: 600;
+            font-size: 0.92em;
+        }
+        .js-table .js-img-type-desc {
+            font-size: 0.78em;
+            color: var(--js-text-muted);
+            margin-top: 1px;
+        }
+
+        /* ── Cache category pills ── */
+        .js-cache-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+        .js-cache-pill {
+            background: var(--js-bg-elevated);
+            border: 1px solid var(--js-border);
+            border-radius: var(--js-radius-sm);
+            padding: 10px 14px;
+        }
+        .js-cache-pill-name {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.78em;
+            color: var(--js-accent);
+            letter-spacing: 0.03em;
+        }
+        .js-cache-pill-detail {
+            font-size: 0.82em;
+            color: var(--js-text-secondary);
+            margin-top: 2px;
+        }
+
+        /* ── Buttons ── */
+        .js-btn-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .js-btn-secondary {
+            font-size: 0.82em !important;
+            padding: 0.25em 0.7em !important;
+        }
+
+        /* ── Save button at bottom ── */
+        .js-save-area {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(20,20,20,0.97) 70%, transparent);
+            padding: 16px 0 8px;
+            margin-top: 12px;
+            z-index: 10;
+        }
+
+        /* ── Two-column grid for compact sections ── */
+        .js-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 700px) {
+            .js-two-col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div id="JellyShimConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-checkbox,emby-textarea">
+        <div data-role="content">
+            <div class="content-primary">
+
+                <!-- ═══ Page Header ═══ -->
+                <div class="js-page-header">
+                    <div class="js-page-header-icon">
+                        <span class="material-icons">bolt</span>
+                    </div>
+                    <div>
+                        <h1>JellyShim</h1>
+                        <p>Web client performance optimization — compression, caching, headers &amp; image processing</p>
+                    </div>
+                </div>
+
+                <form id="JellyShimConfigForm">
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- ASSET OPTIMIZATION                         -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">compress</span>
+                            <h2 class="sectionTitle">Asset Optimization</h2>
+                            <span class="js-badge">Core</span>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableMinification" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable JS/CSS Minification</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Apply additional minification to JavaScript and CSS assets using NUglify.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableCompression" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable Brotli/Gzip Pre-compression</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Pre-compress assets with Brotli and Gzip at build time for near-zero serving cost.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableZstdCompression" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable Zstandard Compression</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Pre-compress assets with Zstandard (zstd) alongside Brotli/Gzip. Zstd offers faster decompression with similar ratios. Supported by Chrome 123+ and Firefox 126+.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableSvgMinification" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable SVG Minification</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Remove comments, metadata, and editor-specific attributes from SVG files.
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>Advanced compression settings</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="BrotliCompressionLevel">
+                                        Brotli Compression Level (0–11)
+                                    </label>
+                                    <input id="BrotliCompressionLevel" type="number" is="emby-input"
+                                           min="0" max="11" step="1" value="11" />
+                                    <div class="fieldDescription">
+                                        Higher values give better compression but slower pre-processing. 11 = maximum.
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- CACHE HEADERS                              -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">cached</span>
+                            <h2 class="sectionTitle">Cache Headers</h2>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableCacheHeaders" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable Optimal Cache Headers</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Add Cache-Control, ETag, and Vary headers to static files.
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>Cache duration settings</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="HashedAssetMaxAge">
+                                        Hashed Asset max-age (seconds)
+                                    </label>
+                                    <input id="HashedAssetMaxAge" type="number" is="emby-input" min="0" value="31536000" />
+                                    <div class="fieldDescription">
+                                        Cache duration for hashed/fingerprinted assets (e.g., main.a1b2c3d4.js). Default: 31536000 (1 year, immutable).
+                                    </div>
+                                </div>
+
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="StaticAssetMaxAge">
+                                        Static Asset max-age (seconds)
+                                    </label>
+                                    <input id="StaticAssetMaxAge" type="number" is="emby-input" min="0" value="2592000" />
+                                    <div class="fieldDescription">
+                                        Cache duration for general static assets. Default: 2592000 (30 days).
+                                    </div>
+                                </div>
+
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="PluginAssetMaxAge">
+                                        Plugin Asset max-age (seconds)
+                                    </label>
+                                    <input id="PluginAssetMaxAge" type="number" is="emby-input" min="0" value="86400" />
+                                    <div class="fieldDescription">
+                                        Cache duration for community plugin static assets. Default: 86400 (1 day).
+                                    </div>
+                                </div>
+
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="StaleWhileRevalidate">
+                                        stale-while-revalidate (seconds)
+                                    </label>
+                                    <input id="StaleWhileRevalidate" type="number" is="emby-input" min="0" value="86400" />
+                                    <div class="fieldDescription">
+                                        Serve stale content while revalidating in background. Default: 86400 (1 day).
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- LINK / PRELOAD HEADERS                     -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">link</span>
+                            <h2 class="sectionTitle">Link / Preload Headers</h2>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableFontPreloadHeaders" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable Font Preload Link Headers</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Add Link: preload headers for font files to enable browser preloading.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableJsModulepreloadHeaders" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable JS Modulepreload Link Headers</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Add Link: modulepreload headers for JavaScript files.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnablePreconnectHeaders" type="checkbox" is="emby-checkbox" />
+                                <span>Enable Preconnect Link Headers</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Add Link: rel=preconnect headers for external origins to speed up cross-origin requests.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="PreconnectOrigins">
+                                Preconnect Origins (one per line)
+                            </label>
+                            <textarea id="PreconnectOrigins" is="emby-textarea" rows="3" style="width:100%"></textarea>
+                            <div class="fieldDescription">
+                                External origins to preconnect to (e.g., https://fonts.googleapis.com). One per line.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- CORS & SECURITY (two cards side by side)   -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-two-col">
+
+                        <!-- CORS / Resource Policy -->
+                        <div class="js-card">
+                            <div class="js-card-header">
+                                <span class="material-icons">public</span>
+                                <h2 class="sectionTitle">CORS / Resource Policy</h2>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="EnableCrossOriginResourcePolicy" type="checkbox" is="emby-checkbox" checked />
+                                    <span>Enable Cross-Origin-Resource-Policy Header</span>
+                                </label>
+                                <div class="fieldDescription">
+                                    Add CORP header (useful for iframe embedding, Jellyseerr integration).
+                                </div>
+                            </div>
+
+                            <div class="inputContainer">
+                                <label class="inputLabel inputLabelUnfocused" for="CrossOriginResourcePolicyValue">
+                                    CORP Value
+                                </label>
+                                <input id="CrossOriginResourcePolicyValue" type="text" is="emby-input" value="cross-origin" />
+                                <div class="fieldDescription">
+                                    cross-origin, same-site, or same-origin. Default: cross-origin.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Headers (base) -->
+                        <div class="js-card">
+                            <div class="js-card-header">
+                                <span class="material-icons">shield</span>
+                                <h2 class="sectionTitle">Security Headers</h2>
+                            </div>
+
+                            <div class="checkboxContainer checkboxContainer-withDescription">
+                                <label class="emby-checkbox-label">
+                                    <input id="EnableSecurityHeaders" type="checkbox" is="emby-checkbox" />
+                                    <span>Enable Security Headers</span>
+                                </label>
+                                <div class="fieldDescription">
+                                    Add X-Content-Type-Options, Referrer-Policy, and Permissions-Policy headers.
+                                </div>
+                            </div>
+
+                            <details class="js-collapsible">
+                                <summary>Header values</summary>
+                                <div>
+                                    <div class="inputContainer">
+                                        <label class="inputLabel inputLabelUnfocused" for="XContentTypeOptions">X-Content-Type-Options</label>
+                                        <input id="XContentTypeOptions" type="text" is="emby-input" value="nosniff" />
+                                    </div>
+                                    <div class="inputContainer">
+                                        <label class="inputLabel inputLabelUnfocused" for="ReferrerPolicy">Referrer-Policy</label>
+                                        <input id="ReferrerPolicy" type="text" is="emby-input" value="strict-origin-when-cross-origin" />
+                                    </div>
+                                    <div class="inputContainer">
+                                        <label class="inputLabel inputLabelUnfocused" for="PermissionsPolicy">Permissions-Policy</label>
+                                        <input id="PermissionsPolicy" type="text" is="emby-input" value="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()" />
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- ADVANCED SECURITY (HSTS, CSP, XFO)         -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">lock</span>
+                            <h2>Advanced Security</h2>
+                            <span class="js-badge" style="background: var(--js-orange-dim); color: var(--js-orange);">Caution</span>
+                        </div>
+
+                        <div class="js-info-box js-info-warning">
+                            <span class="material-icons js-info-box-icon">warning</span>
+                            <div>
+                                <strong>These settings can break your web client if misconfigured.</strong>
+                                <p>Test thoroughly after enabling each option. HSTS requires HTTPS. CSP must match your setup exactly.</p>
+                            </div>
+                        </div>
+
+                        <!-- HSTS -->
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableHsts" type="checkbox" is="emby-checkbox" />
+                                <span>Enable HSTS (Strict-Transport-Security)</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Send Strict-Transport-Security header to enforce HTTPS. Only enable if your server uses HTTPS.
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>HSTS settings</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="HstsMaxAge">HSTS max-age (seconds)</label>
+                                    <input id="HstsMaxAge" type="number" is="emby-input" min="0" value="31536000" />
+                                    <div class="fieldDescription">
+                                        Duration browsers should remember to use HTTPS. Default: 31536000 (1 year).
+                                    </div>
+                                </div>
+                                <div class="checkboxContainer checkboxContainer-withDescription">
+                                    <label class="emby-checkbox-label">
+                                        <input id="HstsIncludeSubDomains" type="checkbox" is="emby-checkbox" checked />
+                                        <span>HSTS Include Subdomains</span>
+                                    </label>
+                                    <div class="fieldDescription">Apply HSTS to all subdomains as well.</div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- CSP -->
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 12px;">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableContentSecurityPolicy" type="checkbox" is="emby-checkbox" />
+                                <span>Enable Content-Security-Policy</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Add CSP header to prevent XSS and data injection attacks. Test thoroughly before enabling — incorrect CSP can break the web client.
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>CSP directive</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="ContentSecurityPolicy">Content-Security-Policy</label>
+                                    <input id="ContentSecurityPolicy" type="text" is="emby-input" value="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;" />
+                                    <div class="fieldDescription">
+                                        The full CSP directive string. The default is a safe baseline for Jellyfin.
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- X-Frame-Options -->
+                        <div class="checkboxContainer checkboxContainer-withDescription" style="margin-top: 12px;">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableXFrameOptions" type="checkbox" is="emby-checkbox" />
+                                <span>Enable X-Frame-Options</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Prevent clickjacking by controlling iframe embedding. Disable if using Jellyseerr in an iframe.
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>X-Frame-Options value</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="XFrameOptionsValue">X-Frame-Options Value</label>
+                                    <input id="XFrameOptionsValue" type="text" is="emby-input" value="SAMEORIGIN" />
+                                    <div class="fieldDescription">
+                                        DENY, SAMEORIGIN, or ALLOW-FROM uri. Default: SAMEORIGIN.
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- IMAGE OPTIMIZATION                         -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">image</span>
+                            <h2 class="sectionTitle">Image Optimization</h2>
+                        </div>
+
+                        <div id="imageInfoBox" class="js-info-box js-info-success">
+                            <span class="material-icons js-info-box-icon">check_circle</span>
+                            <div>
+                                <strong>Built-in image processing</strong>
+                                <p>
+                                    JellyShim processes images natively using ImageSharp + ffmpeg — <strong>no external service required</strong>.<br/>
+                                    Images are resized, re-encoded (AVIF/WebP/JPEG), and cached to disk automatically.
+                                    AVIF uses Jellyfin's bundled ffmpeg (libaom-av1) — zero additional install.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div id="avifStatusBox" class="js-info-box js-info-neutral">
+                            <span id="avifStatusIcon" class="material-icons js-info-box-icon">hourglass_empty</span>
+                            <div>
+                                <strong id="avifStatusTitle">Checking AVIF support…</strong>
+                                <p id="avifStatusDetail"></p>
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableImageOptimization" type="checkbox" is="emby-checkbox" />
+                                <span>Enable Image Optimization</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Intercept image requests and process them with resizing, quality reduction, and format conversion.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableImageCache" type="checkbox" is="emby-checkbox" checked />
+                                <span>Enable Image Disk Cache</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Cache processed images to disk for instant serving on subsequent requests.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="ImageOutputFormat">Output Format</label>
+                            <input id="ImageOutputFormat" type="text" is="emby-input" value="auto" />
+                            <div class="fieldDescription">
+                                Preferred output format: avif, webp, jpeg, or auto (auto negotiates AVIF → WebP → JPEG based on browser support).
+                            </div>
+                        </div>
+
+                        <details class="js-collapsible">
+                            <summary>Image cache settings</summary>
+                            <div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="ImageCacheMaxAge">Image Cache max-age (seconds)</label>
+                                    <input id="ImageCacheMaxAge" type="number" is="emby-input" min="0" value="2592000" />
+                                    <div class="fieldDescription">
+                                        Cache-Control max-age for image responses. Default: 2592000 (30 days).
+                                    </div>
+                                </div>
+                                <div class="inputContainer">
+                                    <label class="inputLabel inputLabelUnfocused" for="ImageStaleWhileRevalidate">Image stale-while-revalidate (seconds)</label>
+                                    <input id="ImageStaleWhileRevalidate" type="number" is="emby-input" min="0" value="604800" />
+                                    <div class="fieldDescription">
+                                        Serve stale image while revalidating in background. Default: 604800 (7 days).
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- Per-type image settings -->
+                        <details class="js-collapsible" style="margin-top: 16px;">
+                            <summary>
+                                <span class="sectionTitle" style="font-size: 1em; margin: 0;">Per-Type Image Settings</span>
+                            </summary>
+                            <div>
+                                <div id="perTypeImageDesc" class="fieldDescription" style="margin-bottom: 10px;">
+                                    Configure max width (px) and quality (1–100) independently for each Jellyfin image type.
+                                    Images smaller than max width are not upscaled.
+                                </div>
+
+                                <div style="overflow-x: auto;">
+                                    <table class="js-table">
+                                        <thead>
+                                            <tr>
+                                                <th style="min-width: 120px;">Image Type</th>
+                                                <th style="width: 120px;">Max Width</th>
+                                                <th style="width: 120px;">Quality</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Primary</div><div class="js-img-type-desc">Poster, cover art, album art</div></td>
+                                                <td><input id="PrimaryMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="600" /></td>
+                                                <td><input id="PrimaryQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Backdrop</div><div class="js-img-type-desc">Background art, detail view</div></td>
+                                                <td><input id="BackdropMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1920" /></td>
+                                                <td><input id="BackdropQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Art</div><div class="js-img-type-desc">Fan art, clear art</div></td>
+                                                <td><input id="ArtMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1280" /></td>
+                                                <td><input id="ArtQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Banner</div><div class="js-img-type-desc">Wide banner images</div></td>
+                                                <td><input id="BannerMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1000" /></td>
+                                                <td><input id="BannerQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Logo</div><div class="js-img-type-desc">Transparent logo overlays</div></td>
+                                                <td><input id="LogoMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="400" /></td>
+                                                <td><input id="LogoQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="90" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Thumb</div><div class="js-img-type-desc">Thumbnail previews</div></td>
+                                                <td><input id="ThumbMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="480" /></td>
+                                                <td><input id="ThumbQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Screenshot</div><div class="js-img-type-desc">TV episode screenshots</div></td>
+                                                <td><input id="ScreenshotMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="1280" /></td>
+                                                <td><input id="ScreenshotQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="75" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Chapter</div><div class="js-img-type-desc">Chapter thumbnails in player</div></td>
+                                                <td><input id="ChapterMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="400" /></td>
+                                                <td><input id="ChapterQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="70" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Profile</div><div class="js-img-type-desc">User profile pictures</div></td>
+                                                <td><input id="ProfileMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="200" /></td>
+                                                <td><input id="ProfileQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="85" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Disc</div><div class="js-img-type-desc">CD/DVD/Blu-ray disc art</div></td>
+                                                <td><input id="DiscMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                                <td><input id="DiscQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Box</div><div class="js-img-type-desc">Box art (front)</div></td>
+                                                <td><input id="BoxMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                                <td><input id="BoxQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">BoxRear</div><div class="js-img-type-desc">Box art (rear)</div></td>
+                                                <td><input id="BoxRearMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                                <td><input id="BoxRearQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                            <tr>
+                                                <td><div class="js-img-type-name">Default</div><div class="js-img-type-desc">Fallback for any other type</div></td>
+                                                <td><input id="DefaultImageMaxWidth" type="number" is="emby-input" min="0" style="margin:0;" value="300" /></td>
+                                                <td><input id="DefaultImageQuality" type="number" is="emby-input" min="1" max="100" style="margin:0;" value="80" /></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- PLUGIN PATHS & FILE TRANSFORMATION         -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">extension</span>
+                            <h2 class="sectionTitle">Plugin Static Asset Paths</h2>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="PluginAssetPaths">
+                                Known Plugin Paths (one per line)
+                            </label>
+                            <textarea id="PluginAssetPaths" is="emby-textarea" rows="7" style="width:100%">/HomeScreen/
+/JellyTweaks/
+/MediaBarEnhanced/
+/Plugins/Announcements/
+/JellyfinEnhanced/
+/JavaScriptInjector/</textarea>
+                            <div class="fieldDescription">
+                                URL path prefixes for community plugin static assets (e.g., /JellyTweaks/).
+                                These paths get plugin-level caching and compression headers.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="FileTransformationBypassPatterns">
+                                File Transformation Bypass Patterns (one per line)
+                            </label>
+                            <textarea id="FileTransformationBypassPatterns" is="emby-textarea" rows="4" style="width:100%">home*.chunk.js
+main.*.bundle.js
+runtime.bundle.js
+user-plugin*.chunk.js</textarea>
+                            <div class="fieldDescription">
+                                Filename patterns (wildcard * supported) for web assets patched at runtime by
+                                File Transformation plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.).
+                                These files are captured AFTER transformation, then compressed and cached.
+                                <strong>Note:</strong> When any patterns are configured, ALL <code>.chunk.js</code> and <code>.bundle.js</code>
+                                files are automatically bypassed from pre-built cache.
+                                Clear the JellyShim cache after updating these plugins.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- PERFORMANCE DASHBOARD                      -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">monitoring</span>
+                            <h2 class="sectionTitle">Performance Dashboard</h2>
+                        </div>
+
+                        <div class="js-stats-grid">
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: var(--js-green);" id="perfHitRate">—</div>
+                                <div class="js-stat-label">Hit Rate</div>
+                            </div>
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: var(--js-blue);" id="perfCacheHits">—</div>
+                                <div class="js-stat-label">Cache Hits</div>
+                            </div>
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: var(--js-orange);" id="perfCacheMisses">—</div>
+                                <div class="js-stat-label">Cache Misses</div>
+                            </div>
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: var(--js-purple);" id="perfNotModified">—</div>
+                                <div class="js-stat-label">304 Not Modified</div>
+                            </div>
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: var(--js-accent);" id="perfBytesServed">—</div>
+                                <div class="js-stat-label">Bytes Served</div>
+                            </div>
+                            <div class="js-stat-card">
+                                <div class="js-stat-value" style="color: #8bc34a;" id="perfBytesSaved">—</div>
+                                <div class="js-stat-label">Compression Savings</div>
+                            </div>
+                        </div>
+
+                        <div class="js-stats-grid" style="margin-top: 10px;">
+                            <div class="js-stat-card js-stat-mini">
+                                <span class="js-stat-value" id="perfWebRequests">—</span>
+                                <span class="js-stat-label">Web Assets</span>
+                            </div>
+                            <div class="js-stat-card js-stat-mini">
+                                <span class="js-stat-value" id="perfPluginRequests">—</span>
+                                <span class="js-stat-label">Plugin Assets</span>
+                            </div>
+                            <div class="js-stat-card js-stat-mini">
+                                <span class="js-stat-value" id="perfFtRequests">—</span>
+                                <span class="js-stat-label">FT Assets</span>
+                            </div>
+                            <div class="js-stat-card js-stat-mini">
+                                <span class="js-stat-value" id="perfImageRequests">—</span>
+                                <span class="js-stat-label">Images</span>
+                            </div>
+                        </div>
+
+                        <div class="js-btn-row" style="margin-top: 14px; justify-content: flex-end;">
+                            <button id="btnResetStats" is="emby-button" type="button" class="raised emby-button js-btn-secondary">
+                                <span class="material-icons" style="font-size:1em; vertical-align: middle; margin-right: 3px;">restart_alt</span>
+                                <span>Reset Stats</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ═══════════════════════════════════════════ -->
+                    <!-- CACHE MANAGEMENT                           -->
+                    <!-- ═══════════════════════════════════════════ -->
+                    <div class="js-card">
+                        <div class="js-card-header">
+                            <span class="material-icons">storage</span>
+                            <h2 class="sectionTitle">Cache Management</h2>
+                        </div>
+
+                        <div id="cacheCategories" class="js-cache-grid" style="margin-bottom: 14px;">
+                            <div style="color: var(--js-text-muted); font-size: 0.9em;">Loading…</div>
+                        </div>
+
+                        <div class="js-btn-row">
+                            <div id="cacheStats" style="font-size: 0.88em; color: var(--js-text-secondary);">
+                                Loading cache info…
+                            </div>
+                            <button id="btnClearCache" is="emby-button" type="button" class="raised emby-button js-btn-secondary" style="margin-left: auto;">
+                                <span class="material-icons" style="font-size:1em; vertical-align: middle; margin-right: 3px;">delete_sweep</span>
+                                <span>Clear Cache</span>
+                            </button>
+                        </div>
+
+                        <div id="cacheManagementDesc" class="fieldDescription" style="margin-top: 10px;">
+                            Pre-compressed assets and optimized images are cached on disk.
+                            Clearing the cache forces re-optimization on next access.
+                            You can also trigger this from Dashboard → Scheduled Tasks → JellyShim: Clear Cache.
+                        </div>
+                    </div>
+
+                    <!-- ═══ Save Button ═══ -->
+                    <div class="js-save-area">
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+        // ══════════════════════════════════════════════════════════════
+        // i18n — Internationalization system
+        // ══════════════════════════════════════════════════════════════
+        var JellyShimI18n = {
+            currentLang: 'en',
+            translations: {},
+
+            detectLanguage: function () {
+                try {
+                    var displayLang = (window.globalize && globalize.getCurrentLocale && globalize.getCurrentLocale())
+                        || document.documentElement.lang
+                        || navigator.language
+                        || navigator.userLanguage
+                        || 'en';
+                    this.currentLang = displayLang.substring(0, 2).toLowerCase();
+                } catch (e) {
+                    this.currentLang = 'en';
+                }
+                return this.currentLang;
+            },
+
+            loadTranslation: function (lang) {
+                var self = this;
+                return fetch(ApiClient.getUrl('JellyShim/Localization/' + lang))
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (data) { if (data) self.translations[lang] = data; })
+                    .catch(function () {});
+            },
+
+            init: function () {
+                var lang = this.detectLanguage();
+                var self = this;
+                var promises = [this.loadTranslation('en')];
+                if (lang !== 'en') {
+                    promises.push(this.loadTranslation(lang));
+                }
+                return Promise.all(promises).then(function () {
+                    self.applyTranslations();
+                });
+            },
+
+            t: function (key) {
+                var strings = this.translations[this.currentLang];
+                if (strings && strings[key]) return strings[key];
+                var en = this.translations['en'];
+                if (en && en[key]) return en[key];
+                return key;
+            },
+
+            applyTranslations: function () {
+                var self = this;
+
+                // Section titles (h2 and h3)
+                document.querySelectorAll('#JellyShimConfigForm h2.sectionTitle, #JellyShimConfigForm h3.sectionTitle').forEach(function (el) {
+                    var key = 'section.' + el.textContent.trim();
+                    var translated = self.t(key);
+                    if (translated !== key) el.textContent = translated;
+                });
+
+                // Checkbox labels and descriptions
+                JellyShimConfig.checkboxes.forEach(function (id) {
+                    var input = document.getElementById(id);
+                    if (!input) return;
+                    var span = input.parentElement.querySelector('span');
+                    if (span) span.textContent = self.t('label.' + id);
+                    var container = input.closest('.checkboxContainer');
+                    if (!container) return;
+                    var desc = container.querySelector('.fieldDescription');
+                    if (desc) desc.textContent = self.t('desc.' + id);
+                });
+
+                // Number, text, and textarea labels and descriptions
+                var allInputIds = JellyShimConfig.numbers
+                    .concat(JellyShimConfig.texts)
+                    .concat(JellyShimConfig.textareas);
+                allInputIds.forEach(function (id) {
+                    var input = document.getElementById(id);
+                    if (!input) return;
+                    var container = input.closest('.inputContainer');
+                    if (!container) return;
+                    var label = container.querySelector('label');
+                    var labelKey = 'label.' + id;
+                    if (label && self.t(labelKey) !== labelKey) label.textContent = self.t(labelKey);
+                    var desc = container.querySelector('.fieldDescription');
+                    var descKey = 'desc.' + id;
+                    if (desc && self.t(descKey) !== descKey) desc.textContent = self.t(descKey);
+                });
+
+                // Image info box
+                var infoBox = document.getElementById('imageInfoBox');
+                if (infoBox) {
+                    var strong = infoBox.querySelector('strong');
+                    if (strong) strong.textContent = self.t('info.imageBuiltinTitle');
+                    var p = infoBox.querySelector('p');
+                    if (p) p.innerHTML = self.t('info.imageBuiltinText');
+                }
+
+                // Per-type image settings description
+                var perTypeDesc = document.getElementById('perTypeImageDesc');
+                if (perTypeDesc) perTypeDesc.textContent = self.t('desc.perTypeImage');
+
+                // Table headers
+                var headers = document.querySelectorAll('#JellyShimConfigForm .js-table th');
+                if (headers.length >= 3) {
+                    headers[0].textContent = self.t('table.imageType');
+                    headers[1].textContent = self.t('table.maxWidth');
+                    headers[2].textContent = self.t('table.quality');
+                }
+
+                // Image type descriptions
+                ['Primary', 'Backdrop', 'Art', 'Banner', 'Logo', 'Thumb',
+                 'Screenshot', 'Chapter', 'Profile', 'Disc', 'Box', 'BoxRear', 'DefaultImage'
+                ].forEach(function (type) {
+                    var input = document.getElementById(type + 'MaxWidth');
+                    if (!input) return;
+                    var row = input.closest('tr');
+                    if (!row) return;
+                    var desc = row.querySelector('.js-img-type-desc');
+                    if (desc) desc.textContent = self.t('imgType.' + type);
+                });
+
+                // Cache management description
+                var cacheDesc = document.getElementById('cacheManagementDesc');
+                if (cacheDesc) cacheDesc.textContent = self.t('desc.cacheManagement');
+
+                // Buttons
+                var saveBtn = document.querySelector('.button-submit span');
+                if (saveBtn) saveBtn.textContent = self.t('btn.save');
+                var clearCacheSpan = document.querySelector('#btnClearCache span:last-child');
+                if (clearCacheSpan) clearCacheSpan.textContent = self.t('btn.clearCache');
+                var resetSpan = document.querySelector('#btnResetStats span:last-child');
+                if (resetSpan) resetSpan.textContent = self.t('btn.resetStats');
+
+                // Cache stats loading text
+                var cacheStatsEl = document.getElementById('cacheStats');
+                if (cacheStatsEl && cacheStatsEl.textContent.indexOf('Loading') !== -1) {
+                    cacheStatsEl.textContent = self.t('cache.loading');
+                }
+
+                // AVIF status loading text
+                var avifTitle = document.getElementById('avifStatusTitle');
+                if (avifTitle && avifTitle.textContent.indexOf('Checking') !== -1) {
+                    avifTitle.textContent = self.t('avif.unknown');
+                }
+            }
+        };
+
+        // ══════════════════════════════════════════════════════════════
+        // Plugin configuration
+        // ══════════════════════════════════════════════════════════════
+        var JellyShimConfig = {
+            pluginUniqueId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+            clearCacheTaskKey: 'JellyShimClearCache',
+
+            checkboxes: [
+                'EnableMinification', 'EnableCompression', 'EnableZstdCompression',
+                'EnableSvgMinification', 'EnableCacheHeaders',
+                'EnableFontPreloadHeaders', 'EnableJsModulepreloadHeaders',
+                'EnablePreconnectHeaders',
+                'EnableCrossOriginResourcePolicy', 'EnableSecurityHeaders',
+                'EnableHsts', 'HstsIncludeSubDomains',
+                'EnableContentSecurityPolicy', 'EnableXFrameOptions',
+                'EnableImageOptimization', 'EnableImageCache'
+            ],
+            numbers: [
+                'BrotliCompressionLevel', 'HashedAssetMaxAge', 'StaticAssetMaxAge',
+                'PluginAssetMaxAge', 'StaleWhileRevalidate',
+                'HstsMaxAge',
+                'ImageCacheMaxAge', 'ImageStaleWhileRevalidate',
+                'PrimaryMaxWidth', 'PrimaryQuality',
+                'BackdropMaxWidth', 'BackdropQuality',
+                'ArtMaxWidth', 'ArtQuality',
+                'BannerMaxWidth', 'BannerQuality',
+                'LogoMaxWidth', 'LogoQuality',
+                'ThumbMaxWidth', 'ThumbQuality',
+                'ScreenshotMaxWidth', 'ScreenshotQuality',
+                'ChapterMaxWidth', 'ChapterQuality',
+                'ProfileMaxWidth', 'ProfileQuality',
+                'DiscMaxWidth', 'DiscQuality',
+                'BoxMaxWidth', 'BoxQuality',
+                'BoxRearMaxWidth', 'BoxRearQuality',
+                'DefaultImageMaxWidth', 'DefaultImageQuality'
+            ],
+            texts: [
+                'CrossOriginResourcePolicyValue', 'XContentTypeOptions',
+                'ReferrerPolicy', 'PermissionsPolicy',
+                'ContentSecurityPolicy', 'XFrameOptionsValue',
+                'ImageOutputFormat'
+            ],
+            textareas: [
+                'PluginAssetPaths',
+                'FileTransformationBypassPatterns',
+                'PreconnectOrigins'
+            ]
+        };
+
+        // ── Page load ──
+        document.querySelector('#JellyShimConfigPage')
+            .addEventListener('pageshow', function () {
+                JellyShimI18n.init();
+
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                    JellyShimConfig.checkboxes.forEach(function (id) {
+                        document.querySelector('#' + id).checked = config[id];
+                    });
+                    JellyShimConfig.numbers.forEach(function (id) {
+                        document.querySelector('#' + id).value = config[id];
+                    });
+                    JellyShimConfig.texts.forEach(function (id) {
+                        document.querySelector('#' + id).value = config[id] || '';
+                    });
+                    JellyShimConfig.textareas.forEach(function (id) {
+                        document.querySelector('#' + id).value = (config[id] || '').replace(/\\n/g, '\n');
+                    });
+                    Dashboard.hideLoadingMsg();
+                });
+
+                loadCacheStats();
+                loadAvifStatus();
+                loadPerformanceDashboard();
+                loadCacheDetails();
+            });
+
+        // ── Save config ──
+        document.querySelector('#JellyShimConfigForm')
+            .addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                    JellyShimConfig.checkboxes.forEach(function (id) {
+                        config[id] = document.querySelector('#' + id).checked;
+                    });
+                    JellyShimConfig.numbers.forEach(function (id) {
+                        var v = parseInt(document.querySelector('#' + id).value, 10);
+                        config[id] = isNaN(v) ? 0 : v;
+                    });
+                    JellyShimConfig.texts.forEach(function (id) {
+                        config[id] = document.querySelector('#' + id).value;
+                    });
+                    JellyShimConfig.textareas.forEach(function (id) {
+                        config[id] = document.querySelector('#' + id).value;
+                    });
+                    ApiClient.updatePluginConfiguration(JellyShimConfig.pluginUniqueId, config).then(function () {
+                        Dashboard.processPluginConfigurationUpdateResult();
+                    });
+                });
+                return false;
+            });
+
+        // ══════════════════════════════════════════════════════════════
+        // Dashboard functions
+        // ══════════════════════════════════════════════════════════════
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            var units = ['B', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i];
+        }
+
+        function loadCacheStats() {
+            var el = document.querySelector('#cacheStats');
+            el.textContent = JellyShimI18n.t('cache.loading');
+            ApiClient.getPluginConfiguration(JellyShimConfig.pluginUniqueId).then(function (config) {
+                ApiClient.getScheduledTasks().then(function (tasks) {
+                    var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
+                    if (task && task.LastExecutionResult) {
+                        el.textContent = JellyShimI18n.t('cache.lastCleared') + new Date(task.LastExecutionResult.EndTimeUtc).toLocaleString();
+                    } else {
+                        el.textContent = JellyShimI18n.t('cache.neverCleared');
+                    }
+                }).catch(function () { el.textContent = ''; });
+            }).catch(function () { el.textContent = ''; });
+        }
+
+        document.querySelector('#btnClearCache').addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearing');
+
+            ApiClient.getScheduledTasks().then(function (tasks) {
+                var task = tasks.find(function (t) { return t.Key === JellyShimConfig.clearCacheTaskKey; });
+                if (!task) {
+                    Dashboard.alert(JellyShimI18n.t('cache.taskNotFound'));
+                    btn.disabled = false;
+                    btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
+                    return;
+                }
+                ApiClient.startScheduledTask(task.Id).then(function () {
+                    setTimeout(function () {
+                        btn.disabled = false;
+                        btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
+                        Dashboard.alert(JellyShimI18n.t('cache.cleared'));
+                        loadCacheStats();
+                        loadCacheDetails();
+                    }, 1500);
+                }).catch(function () {
+                    btn.disabled = false;
+                    btn.querySelector('span:last-child').textContent = JellyShimI18n.t('btn.clearCache');
+                    Dashboard.alert(JellyShimI18n.t('cache.clearFailed'));
+                });
+            });
+        });
+
+        function loadAvifStatus() {
+            var box = document.getElementById('avifStatusBox');
+            var icon = document.getElementById('avifStatusIcon');
+            var title = document.getElementById('avifStatusTitle');
+            var detail = document.getElementById('avifStatusDetail');
+            if (!box) return;
+
+            fetch(ApiClient.getUrl('JellyShim/ImageStatus'), {
+                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+            }).then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data) {
+                    title.textContent = JellyShimI18n.t('avif.unknown');
+                    return;
+                }
+                if (data.AvifSupported) {
+                    box.className = 'js-info-box js-info-success';
+                    icon.textContent = 'check_circle';
+                    title.style.color = 'var(--js-green)';
+                    title.textContent = JellyShimI18n.t('avif.supported');
+                    detail.textContent = JellyShimI18n.t('avif.ffmpegPath') + (data.FfmpegPath || '?')
+                        + (data.FfmpegSource ? ' (' + data.FfmpegSource + ')' : '')
+                        + (data.Av1Encoder ? ' — encoder: ' + data.Av1Encoder : '');
+                } else {
+                    box.className = 'js-info-box js-info-warning';
+                    icon.textContent = 'warning';
+                    title.style.color = 'var(--js-orange)';
+                    title.textContent = JellyShimI18n.t('avif.notSupported');
+                    detail.textContent = JellyShimI18n.t('avif.notSupportedDetail');
+                }
+            }).catch(function () {
+                title.textContent = JellyShimI18n.t('avif.unknown');
+            });
+        }
+
+        function loadPerformanceDashboard() {
+            var authHeader = { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' };
+            fetch(ApiClient.getUrl('JellyShim/PerformanceStats'), { headers: authHeader })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    document.getElementById('perfHitRate').textContent = data.HitRatePercent + '%';
+                    document.getElementById('perfCacheHits').textContent = data.CacheHits.toLocaleString();
+                    document.getElementById('perfCacheMisses').textContent = data.CacheMisses.toLocaleString();
+                    document.getElementById('perfNotModified').textContent = data.NotModifiedResponses.toLocaleString();
+                    document.getElementById('perfBytesServed').textContent = formatBytes(data.BytesServedFromCache);
+                    document.getElementById('perfBytesSaved').textContent = formatBytes(data.BytesSavedByCompression);
+                    document.getElementById('perfWebRequests').textContent = data.WebAssetRequests.toLocaleString();
+                    document.getElementById('perfPluginRequests').textContent = data.PluginAssetRequests.toLocaleString();
+                    document.getElementById('perfFtRequests').textContent = data.FtAssetRequests.toLocaleString();
+                    document.getElementById('perfImageRequests').textContent = data.ImageRequests.toLocaleString();
+                }).catch(function () {});
+        }
+
+        function loadCacheDetails() {
+            var authHeader = { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' };
+            fetch(ApiClient.getUrl('JellyShim/CacheStats'), { headers: authHeader })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    var container = document.getElementById('cacheCategories');
+                    var html = '';
+                    var cats = data.Categories || {};
+                    var keys = Object.keys(cats);
+                    if (keys.length === 0) {
+                        container.innerHTML = '<div style="color: var(--js-text-muted); font-size: 0.9em;">Cache is empty</div>';
+                        return;
+                    }
+                    keys.sort();
+                    keys.forEach(function (key) {
+                        var cat = cats[key];
+                        html += '<div class="js-cache-pill">' +
+                            '<div class="js-cache-pill-name">' + key + '</div>' +
+                            '<div class="js-cache-pill-detail">' + cat.FileCount + ' files · ' + formatBytes(cat.TotalBytes) + '</div>' +
+                            '</div>';
+                    });
+                    container.innerHTML = html;
+                    var totalEl = document.getElementById('cacheStats');
+                    if (totalEl && data.TotalFiles !== undefined) {
+                        var existing = totalEl.textContent;
+                        if (existing.indexOf('files') === -1) {
+                            totalEl.textContent += ' — ' + data.TotalFiles + ' files · ' + formatBytes(data.TotalBytes);
+                        }
+                    }
+                }).catch(function () {});
+        }
+
+        document.getElementById('btnResetStats').addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            fetch(ApiClient.getUrl('JellyShim/PerformanceStats/Reset'), {
+                method: 'POST',
+                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+            }).then(function () {
+                loadPerformanceDashboard();
+                btn.disabled = false;
+            }).catch(function () {
+                btn.disabled = false;
+            });
+        });
+        </script>
+    </div>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>JellyShim</title>
 </head>
 <body>
     <div id="JellyShimConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
@@ -33,6 +1475,26 @@
                         </label>
                         <div class="fieldDescription">
                             Pre-compress assets with Brotli and Gzip at build time for near-zero serving cost.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableZstdCompression" type="checkbox" is="emby-checkbox" checked />
+                            <span>Enable Zstandard Compression</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Pre-compress assets with Zstandard (zstd) alongside Brotli/Gzip. Zstd offers faster decompression with similar ratios. Supported by Chrome 123+ and Firefox 126+.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableSvgMinification" type="checkbox" is="emby-checkbox" checked />
+                            <span>Enable SVG Minification</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Remove comments, metadata, and editor-specific attributes from SVG files.
                         </div>
                     </div>
 
@@ -127,6 +1589,26 @@
                         </div>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnablePreconnectHeaders" type="checkbox" is="emby-checkbox" />
+                            <span>Enable Preconnect Link Headers</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Add Link: rel=preconnect headers for external origins to speed up cross-origin requests.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PreconnectOrigins">
+                            Preconnect Origins (one per line)
+                        </label>
+                        <textarea id="PreconnectOrigins" is="emby-textarea" rows="3" style="width:100%"></textarea>
+                        <div class="fieldDescription">
+                            External origins to preconnect to (e.g., https://fonts.googleapis.com). One per line.
+                        </div>
+                    </div>
+
                     <!-- ═══ CORS / Resource Policy ═══ -->
                     <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
                         <h2 class="sectionTitle">CORS / Resource Policy</h2>
@@ -186,6 +1668,76 @@
                             Permissions-Policy
                         </label>
                         <input id="PermissionsPolicy" type="text" is="emby-input" value="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()" />
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableHsts" type="checkbox" is="emby-checkbox" />
+                            <span>Enable HSTS (Strict-Transport-Security)</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Send Strict-Transport-Security header to enforce HTTPS. Only enable if your server uses HTTPS.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="HstsMaxAge">
+                            HSTS max-age (seconds)
+                        </label>
+                        <input id="HstsMaxAge" type="number" is="emby-input" min="0" value="31536000" />
+                        <div class="fieldDescription">
+                            Duration browsers should remember to use HTTPS. Default: 31536000 (1 year).
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="HstsIncludeSubDomains" type="checkbox" is="emby-checkbox" checked />
+                            <span>HSTS Include Subdomains</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Apply HSTS to all subdomains as well.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableContentSecurityPolicy" type="checkbox" is="emby-checkbox" />
+                            <span>Enable Content-Security-Policy</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Add CSP header to prevent XSS and data injection attacks. Test thoroughly before enabling — incorrect CSP can break the web client.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ContentSecurityPolicy">
+                            Content-Security-Policy
+                        </label>
+                        <input id="ContentSecurityPolicy" type="text" is="emby-input" value="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;" />
+                        <div class="fieldDescription">
+                            The full CSP directive string. The default is a safe baseline for Jellyfin.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableXFrameOptions" type="checkbox" is="emby-checkbox" />
+                            <span>Enable X-Frame-Options</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Prevent clickjacking by controlling iframe embedding. Disable if using Jellyseerr in an iframe.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="XFrameOptionsValue">
+                            X-Frame-Options Value
+                        </label>
+                        <input id="XFrameOptionsValue" type="text" is="emby-input" value="SAMEORIGIN" />
+                        <div class="fieldDescription">
+                            DENY, SAMEORIGIN, or ALLOW-FROM uri. Default: SAMEORIGIN.
+                        </div>
                     </div>
 
                     <!-- ═══ Image Optimization ═══ -->
@@ -425,6 +1977,71 @@ user-plugin*.chunk.js</textarea>
                         </div>
                     </div>
 
+                    <!-- ═══ Performance Dashboard ═══ -->
+                    <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
+                        <h2 class="sectionTitle">Performance Dashboard</h2>
+                    </div>
+
+                    <div id="perfDashboard" style="background: #2a2a2a; border-radius: 6px; padding: 16px; margin-bottom: 1.5em;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #4caf50;" id="perfHitRate">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">Cache Hit Rate</div>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #2196f3;" id="perfCacheHits">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">Cache Hits</div>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #ff9800;" id="perfCacheMisses">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">Cache Misses</div>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #9c27b0;" id="perfNotModified">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">304 Not Modified</div>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #00bcd4;" id="perfBytesServed">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">Bytes Served</div>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 12px; text-align: center;">
+                                <div style="font-size: 1.6em; font-weight: bold; color: #8bc34a;" id="perfBytesSaved">—</div>
+                                <div style="font-size: 0.85em; color: #aaa;">Compression Savings</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                            <div style="background: #333; border-radius: 4px; padding: 8px 12px; text-align: center;">
+                                <span style="font-weight: bold;" id="perfWebRequests">—</span>
+                                <span style="font-size: 0.85em; color: #aaa;"> Web Assets</span>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 8px 12px; text-align: center;">
+                                <span style="font-weight: bold;" id="perfPluginRequests">—</span>
+                                <span style="font-size: 0.85em; color: #aaa;"> Plugin Assets</span>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 8px 12px; text-align: center;">
+                                <span style="font-weight: bold;" id="perfFtRequests">—</span>
+                                <span style="font-size: 0.85em; color: #aaa;"> FT Assets</span>
+                            </div>
+                            <div style="background: #333; border-radius: 4px; padding: 8px 12px; text-align: center;">
+                                <span style="font-weight: bold;" id="perfImageRequests">—</span>
+                                <span style="font-size: 0.85em; color: #aaa;"> Images</span>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; text-align: right;">
+                            <button id="btnResetStats" is="emby-button" type="button" class="raised emby-button" style="padding: 0.3em 0.8em; font-size: 0.85em;">
+                                <span>Reset Stats</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ═══ Cache Details ═══ -->
+                    <div id="cacheDetailsBox" style="background: #2a2a2a; border-radius: 6px; padding: 16px; margin-bottom: 1.5em;">
+                        <h3 style="margin: 0 0 12px 0; font-size: 1em; color: #ccc;">Cache Storage by Category</h3>
+                        <div id="cacheCategories" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
+                            <div style="color: #999; font-size: 0.9em;">Loading…</div>
+                        </div>
+                    </div>
+
                     <!-- ═══ Cache Management ═══ -->
                     <div class="sectionTitleContainer flex align-items-center" style="margin-top: 2em;">
                         <h2 class="sectionTitle">Cache Management</h2>
@@ -617,14 +2234,19 @@ user-plugin*.chunk.js</textarea>
             clearCacheTaskKey: 'JellyShimClearCache',
 
             checkboxes: [
-                'EnableMinification', 'EnableCompression', 'EnableCacheHeaders',
+                'EnableMinification', 'EnableCompression', 'EnableZstdCompression',
+                'EnableSvgMinification', 'EnableCacheHeaders',
                 'EnableFontPreloadHeaders', 'EnableJsModulepreloadHeaders',
+                'EnablePreconnectHeaders',
                 'EnableCrossOriginResourcePolicy', 'EnableSecurityHeaders',
+                'EnableHsts', 'HstsIncludeSubDomains',
+                'EnableContentSecurityPolicy', 'EnableXFrameOptions',
                 'EnableImageOptimization', 'EnableImageCache'
             ],
             numbers: [
                 'BrotliCompressionLevel', 'HashedAssetMaxAge', 'StaticAssetMaxAge',
                 'PluginAssetMaxAge', 'StaleWhileRevalidate',
+                'HstsMaxAge',
                 'ImageCacheMaxAge', 'ImageStaleWhileRevalidate',
                 'PrimaryMaxWidth', 'PrimaryQuality',
                 'BackdropMaxWidth', 'BackdropQuality',
@@ -643,11 +2265,13 @@ user-plugin*.chunk.js</textarea>
             texts: [
                 'CrossOriginResourcePolicyValue', 'XContentTypeOptions',
                 'ReferrerPolicy', 'PermissionsPolicy',
+                'ContentSecurityPolicy', 'XFrameOptionsValue',
                 'ImageOutputFormat'
             ],
             textareas: [
                 'PluginAssetPaths',
-                'FileTransformationBypassPatterns'
+                'FileTransformationBypassPatterns',
+                'PreconnectOrigins'
             ]
         };
 
@@ -676,6 +2300,8 @@ user-plugin*.chunk.js</textarea>
 
                 loadCacheStats();
                 loadAvifStatus();
+                loadPerformanceDashboard();
+                loadCacheDetails();
             });
 
         // ── Save config ──
@@ -795,6 +2421,73 @@ user-plugin*.chunk.js</textarea>
                 title.textContent = JellyShimI18n.t('avif.unknown');
             });
         }
+
+        function loadPerformanceDashboard() {
+            var authHeader = { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' };
+            fetch(ApiClient.getUrl('JellyShim/PerformanceStats'), { headers: authHeader })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    document.getElementById('perfHitRate').textContent = data.HitRatePercent + '%';
+                    document.getElementById('perfCacheHits').textContent = data.CacheHits.toLocaleString();
+                    document.getElementById('perfCacheMisses').textContent = data.CacheMisses.toLocaleString();
+                    document.getElementById('perfNotModified').textContent = data.NotModifiedResponses.toLocaleString();
+                    document.getElementById('perfBytesServed').textContent = formatBytes(data.BytesServedFromCache);
+                    document.getElementById('perfBytesSaved').textContent = formatBytes(data.BytesSavedByCompression);
+                    document.getElementById('perfWebRequests').textContent = data.WebAssetRequests.toLocaleString();
+                    document.getElementById('perfPluginRequests').textContent = data.PluginAssetRequests.toLocaleString();
+                    document.getElementById('perfFtRequests').textContent = data.FtAssetRequests.toLocaleString();
+                    document.getElementById('perfImageRequests').textContent = data.ImageRequests.toLocaleString();
+                }).catch(function () {});
+        }
+
+        function loadCacheDetails() {
+            var authHeader = { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' };
+            fetch(ApiClient.getUrl('JellyShim/CacheStats'), { headers: authHeader })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data) return;
+                    var container = document.getElementById('cacheCategories');
+                    var html = '';
+                    var cats = data.Categories || {};
+                    var keys = Object.keys(cats);
+                    if (keys.length === 0) {
+                        container.innerHTML = '<div style="color: #999; font-size: 0.9em;">Cache is empty</div>';
+                        return;
+                    }
+                    keys.sort();
+                    keys.forEach(function (key) {
+                        var cat = cats[key];
+                        html += '<div style="background: #333; border-radius: 4px; padding: 8px 12px;">' +
+                            '<div style="font-weight: bold; text-transform: uppercase; font-size: 0.85em; color: #4caf50;">' + key + '</div>' +
+                            '<div style="font-size: 0.9em;">' + cat.FileCount + ' files · ' + formatBytes(cat.TotalBytes) + '</div>' +
+                            '</div>';
+                    });
+                    container.innerHTML = html;
+                    // Update overall stats
+                    var totalEl = document.getElementById('cacheStats');
+                    if (totalEl && data.TotalFiles !== undefined) {
+                        var existing = totalEl.textContent;
+                        if (existing.indexOf('files') === -1) {
+                            totalEl.textContent += ' — ' + data.TotalFiles + ' files · ' + formatBytes(data.TotalBytes);
+                        }
+                    }
+                }).catch(function () {});
+        }
+
+        document.getElementById('btnResetStats').addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            fetch(ApiClient.getUrl('JellyShim/PerformanceStats/Reset'), {
+                method: 'POST',
+                headers: { 'Authorization': 'MediaBrowser Token="' + ApiClient.accessToken() + '"' }
+            }).then(function () {
+                loadPerformanceDashboard();
+                btn.disabled = false;
+            }).catch(function () {
+                btn.disabled = false;
+            });
+        });
     </script>
     </div>
 </body>

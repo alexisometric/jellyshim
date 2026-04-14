@@ -80,6 +80,45 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets Permissions-Policy value.</summary>
     public string PermissionsPolicy { get; set; } = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), usb=()";
 
+    /// <summary>Gets or sets a value indicating whether HSTS header is enabled.</summary>
+    public bool EnableHsts { get; set; } = false;
+
+    /// <summary>Gets or sets the HSTS max-age in seconds. Default: 1 year.</summary>
+    public int HstsMaxAge { get; set; } = 31536000;
+
+    /// <summary>Gets or sets a value indicating whether HSTS includes subdomains.</summary>
+    public bool HstsIncludeSubDomains { get; set; } = true;
+
+    /// <summary>Gets or sets a value indicating whether Content-Security-Policy header is enabled.</summary>
+    public bool EnableContentSecurityPolicy { get; set; } = false;
+
+    /// <summary>Gets or sets the Content-Security-Policy value.</summary>
+    public string ContentSecurityPolicy { get; set; } = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:;";
+
+    /// <summary>Gets or sets a value indicating whether X-Frame-Options header is enabled.</summary>
+    public bool EnableXFrameOptions { get; set; } = false;
+
+    /// <summary>Gets or sets the X-Frame-Options value (DENY, SAMEORIGIN, or ALLOW-FROM uri).</summary>
+    public string XFrameOptionsValue { get; set; } = "SAMEORIGIN";
+
+    // ── Preconnect Headers ──────────────────────────────────────────
+
+    /// <summary>Gets or sets a value indicating whether preconnect Link headers are enabled.</summary>
+    public bool EnablePreconnectHeaders { get; set; } = false;
+
+    /// <summary>Gets or sets the preconnect origins (one per line). These origins will get Link: rel=preconnect headers.</summary>
+    public string PreconnectOrigins { get; set; } = "";
+
+    // ── SVG Minification ────────────────────────────────────────────
+
+    /// <summary>Gets or sets a value indicating whether SVG minification is enabled.</summary>
+    public bool EnableSvgMinification { get; set; } = true;
+
+    // ── Zstandard Compression ───────────────────────────────────────
+
+    /// <summary>Gets or sets a value indicating whether Zstandard compression is enabled alongside Brotli/Gzip.</summary>
+    public bool EnableZstdCompression { get; set; } = true;
+
     // ── Image Optimization (native) ────────────────────────────────
     // When enabled, intercepts Jellyfin image API responses and processes
     // them in-process: resize to max width, re-encode to a modern format

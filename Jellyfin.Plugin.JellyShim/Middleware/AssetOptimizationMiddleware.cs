@@ -11,6 +11,7 @@ using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
+using ZstdSharp;
 
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
@@ -52,6 +53,14 @@ public class AssetOptimizationMiddleware
     private static readonly HashSet<string> CompressibleExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".js", ".css", ".html", ".htm", ".json", ".svg", ".xml", ".txt", ".map", ".mjs"
+    };
+
+    /// <summary>
+    /// File extensions eligible for SVG-specific minification.
+    /// </summary>
+    private static readonly HashSet<string> SvgExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".svg"
     };
 
     /// <summary>
@@ -103,6 +112,8 @@ public class AssetOptimizationMiddleware
     private readonly DiskCacheManager _cache;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
+    private readonly SvgTransformer _svgTransformer;
+    private readonly PerformanceStatsTracker _stats;
     private readonly ILogger<AssetOptimizationMiddleware> _logger;
 
     /// <summary>
@@ -143,6 +154,8 @@ public class AssetOptimizationMiddleware
         DiskCacheManager cache,
         JsTransformer jsTransformer,
         CssTransformer cssTransformer,
+        SvgTransformer svgTransformer,
+        PerformanceStatsTracker stats,
         IServerConfigurationManager configManager,
         ILogger<AssetOptimizationMiddleware> logger)
     {
@@ -150,6 +163,8 @@ public class AssetOptimizationMiddleware
         _cache = cache;
         _jsTransformer = jsTransformer;
         _cssTransformer = cssTransformer;
+        _svgTransformer = svgTransformer;
+        _stats = stats;
         _logger = logger;
         _webPath = configManager.ApplicationPaths.WebPath;
         _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware instantiated");
@@ -318,22 +333,7 @@ public class AssetOptimizationMiddleware
 
             // Determine best encoding
             var pluginAcceptEncoding = request.Headers.AcceptEncoding.ToString();
-            string? pluginEncoding = null;
-            string? pluginContentEncoding = null;
-
-            if (config.EnableCompression)
-            {
-                if (pluginAcceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
-                {
-                    pluginEncoding = "br";
-                    pluginContentEncoding = "br";
-                }
-                else if (pluginAcceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
-                {
-                    pluginEncoding = "gz";
-                    pluginContentEncoding = "gzip";
-                }
-            }
+            var (pluginEncoding, pluginContentEncoding) = NegotiateEncoding(pluginAcceptEncoding, config);
 
             // Try to serve from cache (compressed version first, then raw)
             string? pluginCachedPath = null;
@@ -413,22 +413,7 @@ public class AssetOptimizationMiddleware
 
         // Determine best encoding from Accept-Encoding
         var acceptEncoding = request.Headers.AcceptEncoding.ToString();
-        string? encoding = null;
-        string? contentEncoding = null;
-
-        if (config.EnableCompression)
-        {
-            if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
-            {
-                encoding = "br";
-                contentEncoding = "br";
-            }
-            else if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
-            {
-                encoding = "gz";
-                contentEncoding = "gzip";
-            }
-        }
+        var (encoding, contentEncoding) = NegotiateEncoding(acceptEncoding, config);
 
         // File Transformation compatibility: certain JS files are patched at runtime
         // by downstream plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.) via
@@ -440,21 +425,7 @@ public class AssetOptimizationMiddleware
             var ftCacheKey = "ft/" + relativePath;
 
             // Determine best encoding
-            string? ftEncoding = null;
-            string? ftContentEncoding = null;
-            if (config.EnableCompression)
-            {
-                if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
-                {
-                    ftEncoding = "br";
-                    ftContentEncoding = "br";
-                }
-                else if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
-                {
-                    ftEncoding = "gz";
-                    ftContentEncoding = "gzip";
-                }
-            }
+            var (ftEncoding, ftContentEncoding) = NegotiateEncoding(acceptEncoding, config);
 
             // Try to serve from FT cache (compressed first, then raw),
             // but only if the source file hasn't changed since we cached
@@ -576,10 +547,13 @@ public class AssetOptimizationMiddleware
         if (request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            _stats.RecordNotModified();
             return;
         }
 
         var fileInfo = new FileInfo(cachedPath);
+        _stats.RecordCacheHit(fileInfo.Length);
+        _stats.RecordWebAssetRequest();
 
         response.StatusCode = StatusCodes.Status200OK;
         response.ContentType = GetContentType(ext);
@@ -614,6 +588,7 @@ public class AssetOptimizationMiddleware
 
         // Security headers
         AddSecurityHeaders(response, config);
+        AddPreconnectHeaders(response, config);
 
         // Stream file directly to response — avoid loading entire file into memory
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
@@ -716,6 +691,12 @@ public class AssetOptimizationMiddleware
                 }
             }
 
+            // SVG minification
+            if (config.EnableSvgMinification && effectiveExt.Equals(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+                optimized = _svgTransformer.MinifyBytes(optimized);
+            }
+
             // Cache the raw minified version
             _cache.Store(cacheKey, "raw", optimized);
 
@@ -725,13 +706,19 @@ public class AssetOptimizationMiddleware
                 _cache.Store(cacheKey, "meta", Encoding.UTF8.GetBytes(effectiveExt));
             }
 
-            // Compress and cache both variants
+            // Compress and cache all variants
             if (config.EnableCompression)
             {
                 var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
                 var gzip = CompressGzip(optimized);
                 _cache.Store(cacheKey, "br", brotli);
                 _cache.Store(cacheKey, "gz", gzip);
+
+                if (config.EnableZstdCompression)
+                {
+                    var zstd = CompressZstd(optimized);
+                    _cache.Store(cacheKey, "zstd", zstd);
+                }
 
                 _logger.LogInformation(
                     "[JellyShim] Plugin asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
@@ -782,6 +769,10 @@ public class AssetOptimizationMiddleware
             }
 
             AddSecurityHeaders(context.Response, config);
+            AddPreconnectHeaders(context.Response, config);
+
+            _stats.RecordCacheMiss();
+            _stats.RecordPluginAssetRequest();
 
             await context.Response.Body.WriteAsync(toServe, context.RequestAborted).ConfigureAwait(false);
         }
@@ -852,13 +843,19 @@ public class AssetOptimizationMiddleware
             // Cache raw version (no minification for FT files)
             _cache.Store(cacheKey, "raw", optimized);
 
-            // Compress and cache both variants
+            // Compress and cache all variants
             if (config.EnableCompression)
             {
                 var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
                 var gzip = CompressGzip(optimized);
                 _cache.Store(cacheKey, "br", brotli);
                 _cache.Store(cacheKey, "gz", gzip);
+
+                if (config.EnableZstdCompression)
+                {
+                    var zstd = CompressZstd(optimized);
+                    _cache.Store(cacheKey, "zstd", zstd);
+                }
 
                 _logger.LogInformation(
                     "[JellyShim] File Transformation asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
@@ -915,6 +912,10 @@ public class AssetOptimizationMiddleware
             }
 
             AddSecurityHeaders(context.Response, config);
+            AddPreconnectHeaders(context.Response, config);
+
+            _stats.RecordCacheMiss();
+            _stats.RecordFtAssetRequest();
 
             await context.Response.Body.WriteAsync(toServe, context.RequestAborted).ConfigureAwait(false);
         }
@@ -947,10 +948,13 @@ public class AssetOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            _stats.RecordNotModified();
             return;
         }
 
         var fileInfo = new FileInfo(cachedPath);
+        _stats.RecordCacheHit(fileInfo.Length);
+        if (isFileTransformation) _stats.RecordFtAssetRequest(); else _stats.RecordWebAssetRequest();
         response.StatusCode = StatusCodes.Status200OK;
         response.ContentType = GetContentType(ext);
         response.ContentLength = fileInfo.Length;
@@ -981,6 +985,7 @@ public class AssetOptimizationMiddleware
         }
 
         AddSecurityHeaders(response, config);
+        AddPreconnectHeaders(response, config);
 
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
         await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
@@ -1003,10 +1008,13 @@ public class AssetOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            _stats.RecordNotModified();
             return;
         }
 
         var fileInfo = new FileInfo(cachedPath);
+        _stats.RecordCacheHit(fileInfo.Length);
+        _stats.RecordPluginAssetRequest();
         response.StatusCode = StatusCodes.Status200OK;
         response.ContentType = GetContentType(ext);
         response.ContentLength = fileInfo.Length;
@@ -1038,6 +1046,7 @@ public class AssetOptimizationMiddleware
         }
 
         AddSecurityHeaders(response, config);
+        AddPreconnectHeaders(response, config);
 
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
         await fs.CopyToAsync(response.Body, context.RequestAborted).ConfigureAwait(false);
@@ -1082,6 +1091,36 @@ public class AssetOptimizationMiddleware
     }
 
     /// <summary>
+    /// Negotiates the best compression encoding based on Accept-Encoding and config.
+    /// Priority: zstd > br > gzip.
+    /// Returns (cacheVariant, contentEncoding) or (null, null) if no compression.
+    /// </summary>
+    private static (string? CacheVariant, string? ContentEncoding) NegotiateEncoding(string acceptEncoding, PluginConfiguration config)
+    {
+        if (!config.EnableCompression)
+        {
+            return (null, null);
+        }
+
+        if (config.EnableZstdCompression && acceptEncoding.Contains("zstd", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("zstd", "zstd");
+        }
+
+        if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("br", "br");
+        }
+
+        if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("gz", "gzip");
+        }
+
+        return (null, null);
+    }
+
+    /// <summary>
     /// Compresses data with Brotli.
     /// </summary>
     private static byte[] CompressBrotli(byte[] input, int quality)
@@ -1108,6 +1147,15 @@ public class AssetOptimizationMiddleware
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>
+    /// Compresses data with Zstandard. Uses level 19 (high compression).
+    /// </summary>
+    private static byte[] CompressZstd(byte[] input)
+    {
+        using var compressor = new Compressor(19);
+        return compressor.Wrap(input).ToArray();
     }
 
     /// <summary>
@@ -1215,10 +1263,10 @@ public class AssetOptimizationMiddleware
     }
 
     /// <summary>
-    /// Sets CORP, security headers, and a custom action via OnStarting callback
+    /// Sets CORP, security headers, preconnect headers, and a custom action via OnStarting callback
     /// for responses that pass through to the next middleware.
     /// </summary>
-    private static void SetResponseHeaders(HttpContext context, PluginConfiguration config, Action headerAction)
+    private void SetResponseHeaders(HttpContext context, PluginConfiguration config, Action headerAction)
     {
         context.Response.OnStarting(() =>
         {
@@ -1230,6 +1278,7 @@ public class AssetOptimizationMiddleware
             }
 
             AddSecurityHeaders(context.Response, config);
+            AddPreconnectHeaders(context.Response, config);
             return Task.CompletedTask;
         });
     }
@@ -1314,6 +1363,54 @@ public class AssetOptimizationMiddleware
         if (!string.IsNullOrWhiteSpace(config.PermissionsPolicy))
         {
             response.Headers["Permissions-Policy"] = config.PermissionsPolicy;
+        }
+
+        if (config.EnableHsts)
+        {
+            var hstsValue = $"max-age={config.HstsMaxAge}";
+            if (config.HstsIncludeSubDomains)
+            {
+                hstsValue += "; includeSubDomains";
+            }
+
+            response.Headers["Strict-Transport-Security"] = hstsValue;
+        }
+
+        if (config.EnableContentSecurityPolicy && !string.IsNullOrWhiteSpace(config.ContentSecurityPolicy))
+        {
+            response.Headers["Content-Security-Policy"] = config.ContentSecurityPolicy;
+        }
+
+        if (config.EnableXFrameOptions && !string.IsNullOrWhiteSpace(config.XFrameOptionsValue))
+        {
+            response.Headers["X-Frame-Options"] = config.XFrameOptionsValue;
+        }
+    }
+
+    /// <summary>Parsed preconnect origins from config.</summary>
+    private string[]? _cachedPreconnectOrigins;
+    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
+    private string? _cachedPreconnectOriginsRaw;
+
+    /// <summary>
+    /// Adds Link: rel=preconnect headers for configured origins.
+    /// </summary>
+    private void AddPreconnectHeaders(HttpResponse response, PluginConfiguration config)
+    {
+        if (!config.EnablePreconnectHeaders || string.IsNullOrWhiteSpace(config.PreconnectOrigins))
+        {
+            return;
+        }
+
+        if (_cachedPreconnectOriginsRaw != config.PreconnectOrigins)
+        {
+            _cachedPreconnectOrigins = config.PreconnectOrigins.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            _cachedPreconnectOriginsRaw = config.PreconnectOrigins;
+        }
+
+        foreach (var origin in _cachedPreconnectOrigins!)
+        {
+            response.Headers.Append("Link", $"<{origin}>; rel=preconnect");
         }
     }
 

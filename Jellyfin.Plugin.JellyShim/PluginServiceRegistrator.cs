@@ -51,6 +51,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // JS and CSS minifiers using NUglify. Stateless — safe as singletons.
         serviceCollection.AddSingleton<JsTransformer>();
         serviceCollection.AddSingleton<CssTransformer>();
+        serviceCollection.AddSingleton<SvgTransformer>();
 
         // ── Compression ─────────────────────────────────────────────
         // Brotli + Gzip pre-compressor. Stateless — safe as singleton.
@@ -64,6 +65,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // ── Orchestrator ────────────────────────────────────────────
         // Coordinates the scan → minify → compress → cache pipeline for scheduled tasks.
         serviceCollection.AddSingleton<AssetProcessor>();
+
+        // ── Performance tracking ────────────────────────────────────
+        // Thread-safe counters for cache hits/misses, bytes served, etc.
+        serviceCollection.AddSingleton<PerformanceStatsTracker>();
 
         // ── Middleware injection ──────────────────────────────────────
         // Primary: Replace IApplicationBuilderFactory with our own that

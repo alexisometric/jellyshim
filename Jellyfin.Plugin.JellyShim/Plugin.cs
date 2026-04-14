@@ -69,7 +69,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages, IDisposable
                 EmbeddedResourcePath = $"{GetType().Namespace}.Configuration.configPage.html",
                 EnableInMainMenu = true,
                 MenuSection = "server",
-                MenuIcon = "speed"
+                MenuIcon = "bolt"
             }
         ];
     }

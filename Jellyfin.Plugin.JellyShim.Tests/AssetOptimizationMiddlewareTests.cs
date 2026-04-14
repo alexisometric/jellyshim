@@ -19,6 +19,8 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     private readonly DiskCacheManager _cache;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
+    private readonly SvgTransformer _svgTransformer;
+    private readonly PerformanceStatsTracker _stats;
     private readonly Mock<ILogger<AssetOptimizationMiddleware>> _loggerMock;
     private readonly Mock<IServerConfigurationManager> _configManagerMock;
 
@@ -30,6 +32,8 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         _cache = new DiskCacheManager(_tempDir, new Mock<ILogger<DiskCacheManager>>().Object);
         _jsTransformer = new JsTransformer(new Mock<ILogger<JsTransformer>>().Object);
         _cssTransformer = new CssTransformer(new Mock<ILogger<CssTransformer>>().Object);
+        _svgTransformer = new SvgTransformer(new Mock<ILogger<SvgTransformer>>().Object);
+        _stats = new PerformanceStatsTracker();
         _loggerMock = new Mock<ILogger<AssetOptimizationMiddleware>>();
 
         var appPathsMock = new Mock<IServerApplicationPaths>();
@@ -51,7 +55,7 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
     private AssetOptimizationMiddleware CreateMiddleware(RequestDelegate next)
     {
-        return new AssetOptimizationMiddleware(next, _cache, _jsTransformer, _cssTransformer, _configManagerMock.Object, _loggerMock.Object);
+        return new AssetOptimizationMiddleware(next, _cache, _jsTransformer, _cssTransformer, _svgTransformer, _stats, _configManagerMock.Object, _loggerMock.Object);
     }
 
     private static DefaultHttpContext CreateHttpContext(string method, string path, string? acceptEncoding = null)
@@ -506,6 +510,172 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
         Assert.Equal("nosniff", context.Response.Headers["X-Content-Type-Options"].ToString());
         Assert.Equal("no-referrer", context.Response.Headers["Referrer-Policy"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsPermissionsPolicy_WhenEnabled()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            PermissionsPolicy = "camera=(), microphone=()"
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("pp-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/pp-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("camera=(), microphone=()", context.Response.Headers["Permissions-Policy"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsHstsHeader_WhenEnabled()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableHsts = true,
+            HstsMaxAge = 31536000,
+            HstsIncludeSubDomains = true
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("hsts-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/hsts-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("max-age=31536000; includeSubDomains", context.Response.Headers["Strict-Transport-Security"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsHstsHeader_WithoutSubDomains()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableHsts = true,
+            HstsMaxAge = 3600,
+            HstsIncludeSubDomains = false
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("hsts2-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/hsts2-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("max-age=3600", context.Response.Headers["Strict-Transport-Security"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsCspHeader_WhenEnabled()
+    {
+        var csp = "default-src 'self'; script-src 'self'";
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableContentSecurityPolicy = true,
+            ContentSecurityPolicy = csp
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("csp-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/csp-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(csp, context.Response.Headers["Content-Security-Policy"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SkipsCspHeader_WhenValueEmpty()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableContentSecurityPolicy = true,
+            ContentSecurityPolicy = ""
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("csp2-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/csp2-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(context.Response.Headers.ContainsKey("Content-Security-Policy"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsXFrameOptionsHeader_WhenEnabled()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableXFrameOptions = true,
+            XFrameOptionsValue = "DENY"
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("xfo-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/xfo-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("DENY", context.Response.Headers["X-Frame-Options"].ToString());
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SkipsXFrameOptions_WhenValueEmpty()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = true,
+            EnableXFrameOptions = true,
+            XFrameOptionsValue = ""
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("xfo2-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/xfo2-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(context.Response.Headers.ContainsKey("X-Frame-Options"));
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SkipsAllSecurityHeaders_WhenDisabled()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            EnableSecurityHeaders = false,
+            EnableHsts = true,
+            EnableContentSecurityPolicy = true,
+            EnableXFrameOptions = true
+        });
+
+        var jsContent = "var a=1;"u8.ToArray();
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        _cache.Store("nosec-test.js", "raw", jsContent);
+        var context = CreateHttpContext("GET", "/web/nosec-test.js");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(context.Response.Headers.ContainsKey("X-Content-Type-Options"));
+        Assert.False(context.Response.Headers.ContainsKey("Strict-Transport-Security"));
+        Assert.False(context.Response.Headers.ContainsKey("Content-Security-Policy"));
+        Assert.False(context.Response.Headers.ContainsKey("X-Frame-Options"));
     }
 
     // ── Unrelated paths ───────────────────────────────────────────

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging;
+using ZstdSharp;
 
 namespace Jellyfin.Plugin.JellyShim.Optimization;
 
@@ -110,5 +111,14 @@ public class PreCompressor
                 1.0 - ((double)gz.Length / input.Length));
         }
         return (br, gz);
+    }
+
+    /// <summary>
+    /// Compresses data with Zstandard at level 19 (high compression).
+    /// </summary>
+    public byte[] CompressZstd(byte[] input)
+    {
+        using var compressor = new Compressor(19);
+        return compressor.Wrap(input).ToArray();
     }
 }
