@@ -3,14 +3,21 @@
 <head>
     <meta charset="utf-8" />
     <title>JellyShim</title>
+</head>
+<body>
+    <div id="JellyShimConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-checkbox,emby-textarea">
+        <div data-role="content">
+            <div class="content-primary">
+
     <style>
         /* ═══ JellyShim Design System ═══ */
         :root {
-            --js-bg-card: rgba(255,255,255,0.04);
-            --js-bg-card-hover: rgba(255,255,255,0.06);
-            --js-bg-elevated: rgba(255,255,255,0.07);
-            --js-border: rgba(255,255,255,0.08);
-            --js-border-accent: rgba(255,255,255,0.12);
+            --js-bg-card: rgba(255,255,255,0.06);
+            --js-bg-card-hover: rgba(255,255,255,0.09);
+            --js-bg-elevated: rgba(255,255,255,0.09);
+            --js-border: rgba(255,255,255,0.14);
+            --js-border-accent: rgba(255,255,255,0.22);
             --js-text-primary: rgba(255,255,255,0.92);
             --js-text-secondary: rgba(255,255,255,0.6);
             --js-text-muted: rgba(255,255,255,0.4);
@@ -71,10 +78,12 @@
             border-radius: var(--js-radius);
             padding: 20px 24px 24px;
             margin-bottom: 20px;
-            transition: border-color 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
         .js-card:hover {
             border-color: var(--js-border-accent);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
         }
         .js-card-header {
             display: flex;
@@ -87,7 +96,7 @@
         .js-card-header .material-icons {
             font-size: 22px;
             color: var(--js-accent);
-            opacity: 0.85;
+            opacity: 1;
         }
         .js-card-header h2 {
             margin: 0;
@@ -342,13 +351,29 @@
         @media (max-width: 700px) {
             .js-two-col { grid-template-columns: 1fr; }
         }
+
+        /* ── Jellyfin emby-* overrides inside cards ── */
+        .js-card input[is="emby-input"],
+        .js-card textarea[is="emby-textarea"],
+        .js-card select[is="emby-select"] {
+            background: rgba(255,255,255,0.04) !important;
+            border-bottom-color: var(--js-border-accent) !important;
+        }
+        .js-card input[is="emby-input"]:focus,
+        .js-card textarea[is="emby-textarea"]:focus,
+        .js-card select[is="emby-select"]:focus {
+            background: rgba(255,255,255,0.07) !important;
+            border-bottom-color: var(--js-accent) !important;
+        }
+
+        /* ── Stat cards visibility ── */
+        .js-stat-card {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .js-cache-pill {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
     </style>
-</head>
-<body>
-    <div id="JellyShimConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
-         data-require="emby-input,emby-button,emby-checkbox,emby-textarea">
-        <div data-role="content">
-            <div class="content-primary">
 
                 <!-- ═══ Page Header ═══ -->
                 <div class="js-page-header">
@@ -2489,6 +2514,8 @@ user-plugin*.chunk.js</textarea>
             });
         });
     </script>
+            </div>
+        </div>
     </div>
 </body>
 </html>

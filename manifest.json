@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.1.1.0",
+        "changelog": "Fix config page CSS: move style block from head to body so custom styling is rendered by Jellyfin's plugin page loader. Improved card contrast, input focus states, and shadow visibility.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.1.1/jellyshim-v1.1.1.zip",
+        "checksum": "41551c124ccba3a77ae692ddb17c7f3f",
+        "timestamp": "2026-04-14T21:00:00Z"
+      },
+      {
         "version": "1.1.0.0",
         "changelog": "Major update — SVG minification, Zstd compression (3-tier: Brotli > Zstd > Gzip), performance stats dashboard with live cache/compression metrics, per-plugin cache clear API, security headers suite (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy), Link: rel=preconnect headers, redesigned admin UI (card-based layout, collapsible sections, live stats). 148 unit tests, 12 languages updated (110 keys).",
         "targetAbi": "10.11.0.0",
