@@ -150,4 +150,70 @@ public class JsTransformerTests
         Assert.True(result.Length < input.Length, "Non-fatal errors should still produce minified output");
         Assert.Contains("hello", result);
     }
+
+    [Fact]
+    public void Minify_PreservesVariableNames()
+    {
+        // Third-party plugin code relies on variable names not being mangled.
+        // This was causing "s is not defined" errors in Announcements banner.js.
+        var input = """
+            function initBanner() {
+                var bannerElement = document.getElementById("announcement-banner");
+                var message = bannerElement.getAttribute("data-message");
+                var timeout = parseInt(bannerElement.getAttribute("data-timeout"));
+                setTimeout(function() {
+                    bannerElement.style.display = "none";
+                }, timeout);
+            }
+            initBanner();
+            """;
+
+        var result = _transformer.Minify(input);
+
+        Assert.True(result.Length < input.Length, "Should still be minified");
+        Assert.Contains("bannerElement", result);
+        Assert.Contains("message", result);
+        Assert.Contains("timeout", result);
+        Assert.Contains("initBanner", result);
+    }
+
+    [Fact]
+    public void Minify_PreservesDynamicRequirePaths()
+    {
+        // Webpack dynamic imports use string concatenation for module paths.
+        // Aggressive constant folding can break these into './'.
+        var input = """
+            function loadModule(name) {
+                var basePath = "./modules/";
+                var fullPath = basePath + name;
+                return require(fullPath);
+            }
+            """;
+
+        var result = _transformer.Minify(input);
+
+        Assert.Contains("basePath", result);
+        Assert.Contains("fullPath", result);
+        Assert.Contains("./modules/", result);
+    }
+
+    [Fact]
+    public void Minify_PreservesTemplateLiteralExpressions()
+    {
+        // Translation functions use expressions as keys via template literals.
+        // Aggressive minification was turning these into literal string keys.
+        var input = """
+            function translate(key) {
+                var dictionary = { "hello": "world" };
+                return dictionary[key] || key;
+            }
+            var maxFileSize = 1024;
+            var label = translate("Upload limit: " + (maxFileSize / (1024 * 1024)) + " MB");
+            """;
+
+        var result = _transformer.Minify(input);
+
+        Assert.Contains("maxFileSize", result);
+        Assert.Contains("translate", result);
+    }
 }

@@ -67,8 +67,8 @@ public class CacheStatsController : ControllerBase
             return BadRequest("Prefix is required");
         }
 
-        // Only allow known safe prefixes
-        var allowedPrefixes = new[] { "plugin", "ft", "img", "raw", "br", "gz", "zstd" };
+        // Only allow prefixes that correspond to actual cache key paths (plugin/, ft/)
+        var allowedPrefixes = new[] { "plugin", "ft" };
         if (!Array.Exists(allowedPrefixes, p => p.Equals(prefix, StringComparison.OrdinalIgnoreCase)))
         {
             return BadRequest("Invalid prefix. Allowed: " + string.Join(", ", allowedPrefixes));

@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Model.Configuration;
 using Microsoft.Extensions.Logging;
@@ -229,7 +226,7 @@ public class ImageProcessor
             };
 
             process.Start();
-            var stderr = process.StandardError.ReadToEnd();
+            var stderrTask = process.StandardError.ReadToEndAsync();
 
             if (!process.WaitForExit(30_000))
             {
@@ -238,6 +235,8 @@ public class ImageProcessor
                 image.Save(output, new WebpEncoder { Quality = quality, Method = WebpEncodingMethod.BestQuality });
                 return;
             }
+
+            var stderr = stderrTask.GetAwaiter().GetResult();
 
             if (process.ExitCode != 0)
             {
@@ -309,7 +308,10 @@ public class ImageProcessor
 
             process.Start();
             var stdout = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5_000);
+            if (!process.WaitForExit(5_000))
+            {
+                try { process.Kill(true); } catch { }
+            }
 
             // Prefer SVT-AV1 (faster encoding) over libaom-av1 (reference but slower).
             // Both produce valid AVIF output — SVT-AV1 is 5-10x faster for similar quality.
@@ -398,13 +400,17 @@ public class ImageProcessor
                     FileName = candidate,
                     Arguments = "-version",
                     UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
                     CreateNoWindow = true
                 };
 
                 process.Start();
-                process.WaitForExit(5_000);
+                if (!process.WaitForExit(5_000))
+                {
+                    try { process.Kill(true); } catch { }
+                    continue;
+                }
 
                 if (process.ExitCode == 0)
                 {

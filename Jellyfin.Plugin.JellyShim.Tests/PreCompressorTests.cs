@@ -22,7 +22,7 @@ public class PreCompressorTests
     {
         var original = Encoding.UTF8.GetBytes("Hello, this is a test of Brotli compression!");
 
-        var compressed = _compressor.CompressBrotli(original);
+        var compressed = PreCompressor.CompressBrotli(original);
 
         Assert.NotEmpty(compressed);
         Assert.True(compressed.Length < original.Length || original.Length < 50,
@@ -42,7 +42,7 @@ public class PreCompressorTests
     {
         var original = Encoding.UTF8.GetBytes("Hello, this is a test of Gzip compression!");
 
-        var compressed = _compressor.CompressGzip(original);
+        var compressed = PreCompressor.CompressGzip(original);
 
         Assert.NotEmpty(compressed);
 
@@ -78,7 +78,7 @@ public class PreCompressorTests
     public void CompressBrotli_EmptyInput_ReturnsNonEmpty()
     {
         // Brotli produces a small header even for empty input
-        var compressed = _compressor.CompressBrotli(Array.Empty<byte>());
+        var compressed = PreCompressor.CompressBrotli(Array.Empty<byte>());
         Assert.NotNull(compressed);
     }
 
@@ -86,33 +86,8 @@ public class PreCompressorTests
     public void CompressGzip_EmptyInput_ReturnsNonEmpty()
     {
         // Gzip produces a header even for empty input
-        var compressed = _compressor.CompressGzip(Array.Empty<byte>());
+        var compressed = PreCompressor.CompressGzip(Array.Empty<byte>());
         Assert.NotNull(compressed);
-    }
-
-    [Fact]
-    public async Task CompressBrotliAsync_MatchesSyncResult()
-    {
-        var original = Encoding.UTF8.GetBytes("Async Brotli test content for comparison");
-
-        var syncResult = _compressor.CompressBrotli(original);
-        var asyncResult = await _compressor.CompressBrotliAsync(original);
-
-        // Both should decompress to the same original
-        Assert.Equal(original, Decompress(syncResult, "br"));
-        Assert.Equal(original, Decompress(asyncResult, "br"));
-    }
-
-    [Fact]
-    public async Task CompressGzipAsync_MatchesSyncResult()
-    {
-        var original = Encoding.UTF8.GetBytes("Async Gzip test content for comparison");
-
-        var syncResult = _compressor.CompressGzip(original);
-        var asyncResult = await _compressor.CompressGzipAsync(original);
-
-        Assert.Equal(original, Decompress(syncResult, "gzip"));
-        Assert.Equal(original, Decompress(asyncResult, "gzip"));
     }
 
     [Fact]
@@ -126,7 +101,7 @@ public class PreCompressorTests
         }
         var original = Encoding.UTF8.GetBytes(sb.ToString());
 
-        var compressed = _compressor.CompressBrotli(original);
+        var compressed = PreCompressor.CompressBrotli(original);
 
         Assert.True(compressed.Length < original.Length / 2,
             $"Expected at least 50% compression, got {compressed.Length}/{original.Length}");
@@ -141,7 +116,7 @@ public class PreCompressorTests
     {
         var original = Encoding.UTF8.GetBytes(new string('x', 500));
 
-        var compressed = _compressor.CompressBrotli(original, quality);
+        var compressed = PreCompressor.CompressBrotli(original, quality);
         var decompressed = Decompress(compressed, "br");
 
         Assert.Equal(original, decompressed);
@@ -171,7 +146,7 @@ public class PreCompressorTests
     {
         var original = Encoding.UTF8.GetBytes("Hello, this is a test of Zstandard compression!");
 
-        var compressed = _compressor.CompressZstd(original);
+        var compressed = PreCompressor.CompressZstd(original);
 
         Assert.NotEmpty(compressed);
 
@@ -184,7 +159,7 @@ public class PreCompressorTests
     [Fact]
     public void CompressZstd_EmptyInput_ReturnsNonEmpty()
     {
-        var compressed = _compressor.CompressZstd(Array.Empty<byte>());
+        var compressed = PreCompressor.CompressZstd(Array.Empty<byte>());
 
         Assert.NotEmpty(compressed);
 
@@ -198,7 +173,7 @@ public class PreCompressorTests
     {
         var original = Encoding.UTF8.GetBytes(new string('z', 10_000));
 
-        var compressed = _compressor.CompressZstd(original);
+        var compressed = PreCompressor.CompressZstd(original);
 
         Assert.True(compressed.Length < original.Length,
             $"Expected compression: {compressed.Length} < {original.Length}");

@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 
@@ -171,9 +169,10 @@ public class DiskCacheManager
             return cached.ETag;
         }
 
-        var bytes = File.ReadAllBytes(filePath);
-        var hash = SHA256.HashData(bytes);
-        var etag = $"\"{Convert.ToHexStringLower(hash[..8])}\"";
+        using var stream = File.OpenRead(filePath);
+        var hash = new byte[32];
+        SHA256.HashData(stream, hash);
+        var etag = $"\"{Convert.ToHexStringLower(hash.AsSpan(0, 8))}\"";
 
         _etagCache[filePath] = (lastWrite, etag);
         return etag;
@@ -234,10 +233,11 @@ public class DiskCacheManager
             }
         }
 
-        // Clear matching ETag cache entries
+        // Clear matching ETag cache entries (match on path segment boundaries)
+        var matchPattern = Path.DirectorySeparatorChar + safePath + Path.DirectorySeparatorChar;
         foreach (var key in _etagCache.Keys)
         {
-            if (key.Contains(safePath, StringComparison.OrdinalIgnoreCase))
+            if (key.Contains(matchPattern, StringComparison.OrdinalIgnoreCase))
             {
                 _etagCache.TryRemove(key, out _);
             }

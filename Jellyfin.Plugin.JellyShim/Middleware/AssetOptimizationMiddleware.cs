@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
-using System.IO;
 using System.IO.Compression;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Configuration;
+using Jellyfin.Plugin.JellyShim.Optimization;
 using Jellyfin.Plugin.JellyShim.Transformation;
 using MediaBrowser.Controller.Configuration;
 using Microsoft.AspNetCore.Http;
@@ -56,14 +54,6 @@ public class AssetOptimizationMiddleware
     };
 
     /// <summary>
-    /// File extensions eligible for SVG-specific minification.
-    /// </summary>
-    private static readonly HashSet<string> SvgExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".svg"
-    };
-
-    /// <summary>
     /// Font file extensions — served with immutable cache and Link preload headers
     /// but NOT minified/compressed (already optimized binary formats).
     /// </summary>
@@ -101,10 +91,8 @@ public class AssetOptimizationMiddleware
     /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
     private string? _cachedPluginPathsRaw;
 
-    /// <summary>Parsed File Transformation bypass patterns from config.</summary>
-    private string[]? _cachedBypassPatterns;
-    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
-    private string? _cachedBypassPatternsRaw;
+    /// <summary>Parsed File Transformation bypass matcher (shared logic with AssetProcessor).</summary>
+    private readonly FileTransformationMatcher _ftMatcher = new();
 
     // ── Dependencies ─────────────────────────────────────────────────
 
@@ -707,31 +695,39 @@ public class AssetOptimizationMiddleware
             }
 
             // Compress and cache all variants
+            byte[]? brotli = null, gzip = null, zstd = null;
             if (config.EnableCompression)
             {
-                var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
-                var gzip = CompressGzip(optimized);
+                brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
+                gzip = CompressGzip(optimized);
                 _cache.Store(cacheKey, "br", brotli);
                 _cache.Store(cacheKey, "gz", gzip);
 
                 if (config.EnableZstdCompression)
                 {
-                    var zstd = CompressZstd(optimized);
+                    zstd = CompressZstd(optimized);
                     _cache.Store(cacheKey, "zstd", zstd);
                 }
+
+                _stats.RecordCompressionSaving(rawBytes.Length, brotli.Length);
 
                 _logger.LogInformation(
                     "[JellyShim] Plugin asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
                     path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
             }
 
-            // Serve the best version
+            // Serve the best version directly from memory (no disk re-read)
             byte[] toServe;
             if (encoding is not null)
             {
-                _cache.TryGetCachedFile(cacheKey, encoding, out var compressedCachePath);
-                toServe = compressedCachePath is not null ? await File.ReadAllBytesAsync(compressedCachePath, context.RequestAborted).ConfigureAwait(false) : optimized;
-                if (compressedCachePath is null)
+                toServe = encoding switch
+                {
+                    "br" when brotli is not null => brotli,
+                    "gz" when gzip is not null => gzip,
+                    "zstd" when zstd is not null => zstd,
+                    _ => optimized
+                };
+                if (toServe == optimized)
                 {
                     contentEncoding = null;
                 }
@@ -844,31 +840,39 @@ public class AssetOptimizationMiddleware
             _cache.Store(cacheKey, "raw", optimized);
 
             // Compress and cache all variants
+            byte[]? brotli = null, gzip = null, zstd = null;
             if (config.EnableCompression)
             {
-                var brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
-                var gzip = CompressGzip(optimized);
+                brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
+                gzip = CompressGzip(optimized);
                 _cache.Store(cacheKey, "br", brotli);
                 _cache.Store(cacheKey, "gz", gzip);
 
                 if (config.EnableZstdCompression)
                 {
-                    var zstd = CompressZstd(optimized);
+                    zstd = CompressZstd(optimized);
                     _cache.Store(cacheKey, "zstd", zstd);
                 }
+
+                _stats.RecordCompressionSaving(rawBytes.Length, brotli.Length);
 
                 _logger.LogInformation(
                     "[JellyShim] File Transformation asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
                     path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
             }
 
-            // Serve the best version
+            // Serve the best version directly from memory (no disk re-read)
             byte[] toServe;
             if (encoding is not null)
             {
-                _cache.TryGetCachedFile(cacheKey, encoding, out var compressedCachePath);
-                toServe = compressedCachePath is not null ? await File.ReadAllBytesAsync(compressedCachePath, context.RequestAborted).ConfigureAwait(false) : optimized;
-                if (compressedCachePath is null)
+                toServe = encoding switch
+                {
+                    "br" when brotli is not null => brotli,
+                    "gz" when gzip is not null => gzip,
+                    "zstd" when zstd is not null => zstd,
+                    _ => optimized
+                };
+                if (toServe == optimized)
                 {
                     contentEncoding = null;
                 }
@@ -1060,6 +1064,14 @@ public class AssetOptimizationMiddleware
     {
         try
         {
+            if (contentEncoding.Contains("zstd", StringComparison.OrdinalIgnoreCase))
+            {
+                using var decompressor = new Decompressor();
+                var decompressed = decompressor.Unwrap(data);
+                _logger.LogDebug("[JellyShim] Decompressed upstream Zstd response: {Compressed}B → {Raw}B", data.Length, decompressed.Length);
+                return decompressed.ToArray();
+            }
+
             if (contentEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
             {
                 using var input = new MemoryStream(data);
@@ -1097,22 +1109,52 @@ public class AssetOptimizationMiddleware
     /// </summary>
     private static (string? CacheVariant, string? ContentEncoding) NegotiateEncoding(string acceptEncoding, PluginConfiguration config)
     {
-        if (!config.EnableCompression)
+        if (!config.EnableCompression || string.IsNullOrEmpty(acceptEncoding))
         {
             return (null, null);
         }
 
-        if (config.EnableZstdCompression && acceptEncoding.Contains("zstd", StringComparison.OrdinalIgnoreCase))
+        // Parse Accept-Encoding tokens respecting quality values.
+        // Format: "gzip, deflate, br;q=1.0, zstd;q=0.8"
+        // We pick the best supported encoding by our preference order: zstd > br > gzip.
+        bool acceptsZstd = false, acceptsBr = false, acceptsGzip = false;
+
+        foreach (var part in acceptEncoding.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            // Extract token before any ;q= parameter
+            var token = part;
+            var semicolon = part.IndexOf(';');
+            if (semicolon >= 0)
+            {
+                token = part[..semicolon].Trim();
+            }
+
+            if (token.Equals("zstd", StringComparison.OrdinalIgnoreCase))
+            {
+                acceptsZstd = true;
+            }
+            else if (token.Equals("br", StringComparison.OrdinalIgnoreCase))
+            {
+                acceptsBr = true;
+            }
+            else if (token.Equals("gzip", StringComparison.OrdinalIgnoreCase))
+            {
+                acceptsGzip = true;
+            }
+        }
+
+        // Priority: zstd (best ratio at speed) > brotli (best ratio) > gzip (widest support)
+        if (config.EnableZstdCompression && acceptsZstd)
         {
             return ("zstd", "zstd");
         }
 
-        if (acceptEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+        if (acceptsBr)
         {
             return ("br", "br");
         }
 
-        if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+        if (acceptsGzip)
         {
             return ("gz", "gzip");
         }
@@ -1120,43 +1162,10 @@ public class AssetOptimizationMiddleware
         return (null, null);
     }
 
-    /// <summary>
-    /// Compresses data with Brotli.
-    /// </summary>
-    private static byte[] CompressBrotli(byte[] input, int quality)
-    {
-        using var output = new MemoryStream();
-        var level = quality >= 10 ? CompressionLevel.SmallestSize : CompressionLevel.Optimal;
-        using (var brotli = new BrotliStream(output, level, leaveOpen: true))
-        {
-            brotli.Write(input, 0, input.Length);
-        }
-
-        return output.ToArray();
-    }
-
-    /// <summary>
-    /// Compresses data with Gzip.
-    /// </summary>
-    private static byte[] CompressGzip(byte[] input)
-    {
-        using var output = new MemoryStream();
-        using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
-        {
-            gzip.Write(input, 0, input.Length);
-        }
-
-        return output.ToArray();
-    }
-
-    /// <summary>
-    /// Compresses data with Zstandard. Uses level 19 (high compression).
-    /// </summary>
-    private static byte[] CompressZstd(byte[] input)
-    {
-        using var compressor = new Compressor(19);
-        return compressor.Wrap(input).ToArray();
-    }
+    // Compression methods delegate to PreCompressor static methods (single source of truth)
+    private static byte[] CompressBrotli(byte[] input, int quality) => PreCompressor.CompressBrotli(input, quality);
+    private static byte[] CompressGzip(byte[] input) => PreCompressor.CompressGzip(input);
+    private static byte[] CompressZstd(byte[] input) => PreCompressor.CompressZstd(input);
 
     /// <summary>
     /// Checks if a path matches one of the configured plugin static asset prefixes.
@@ -1195,48 +1204,7 @@ public class AssetOptimizationMiddleware
     /// </summary>
     private bool IsFileTransformationBypassed(string relativePath, PluginConfiguration config)
     {
-        if (string.IsNullOrWhiteSpace(config.FileTransformationBypassPatterns))
-        {
-            return false;
-        }
-
-        if (_cachedBypassPatternsRaw != config.FileTransformationBypassPatterns)
-        {
-            _cachedBypassPatterns = config.FileTransformationBypassPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            _cachedBypassPatternsRaw = config.FileTransformationBypassPatterns;
-        }
-
-        var fileName = Path.GetFileName(relativePath);
-
-        // When FT plugins are in use (any patterns configured), ALL webpack chunk/bundle
-        // files are potentially patched at runtime. Pre-caching these from disk would
-        // serve the original unpatched content, bypassing FT patches entirely.
-        // This catches HSS, Custom Tabs, JellyfinEnhanced, etc. regardless of the
-        // specific chunk filename (which changes between Jellyfin versions).
-        if (fileName.EndsWith(".chunk.js", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".bundle.js", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        foreach (var pattern in _cachedBypassPatterns!)
-        {
-            if (WildcardMatch(fileName, pattern))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Simple wildcard matching: * matches any sequence of characters.
-    /// </summary>
-    private static bool WildcardMatch(string input, string pattern)
-    {
-        var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
-        return System.Text.RegularExpressions.Regex.IsMatch(input, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return _ftMatcher.IsMatch(relativePath, config.FileTransformationBypassPatterns);
     }
 
     /// <summary>

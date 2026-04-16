@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 using ZstdSharp;
@@ -35,7 +33,7 @@ public class PreCompressor
     /// <param name="input">The raw bytes to compress.</param>
     /// <param name="quality">Brotli quality level (0-11). Default 11 for max compression.</param>
     /// <returns>The compressed bytes.</returns>
-    public byte[] CompressBrotli(byte[] input, int quality = 11)
+    public static byte[] CompressBrotli(byte[] input, int quality = 11)
     {
         using var output = new MemoryStream();
         var level = quality >= 10 ? CompressionLevel.SmallestSize : CompressionLevel.Optimal;
@@ -48,46 +46,16 @@ public class PreCompressor
     }
 
     /// <summary>
-    /// Compresses data with Brotli asynchronously.
-    /// </summary>
-    public async Task<byte[]> CompressBrotliAsync(byte[] input, int quality = 11, CancellationToken cancellationToken = default)
-    {
-        using var output = new MemoryStream();
-        // BrotliStream with CompressionLevel.SmallestSize maps to quality 11
-        var level = quality >= 10 ? CompressionLevel.SmallestSize : CompressionLevel.Optimal;
-        using (var brotli = new BrotliStream(output, level, leaveOpen: true))
-        {
-            await brotli.WriteAsync(input.AsMemory(0, input.Length), cancellationToken).ConfigureAwait(false);
-        }
-
-        return output.ToArray();
-    }
-
-    /// <summary>
     /// Compresses data with Gzip at optimal level.
     /// </summary>
     /// <param name="input">The raw bytes to compress.</param>
     /// <returns>The compressed bytes.</returns>
-    public byte[] CompressGzip(byte[] input)
+    public static byte[] CompressGzip(byte[] input)
     {
         using var output = new MemoryStream();
         using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
         {
             gzip.Write(input, 0, input.Length);
-        }
-
-        return output.ToArray();
-    }
-
-    /// <summary>
-    /// Compresses data with Gzip asynchronously.
-    /// </summary>
-    public async Task<byte[]> CompressGzipAsync(byte[] input, CancellationToken cancellationToken = default)
-    {
-        using var output = new MemoryStream();
-        using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize, leaveOpen: true))
-        {
-            await gzip.WriteAsync(input.AsMemory(0, input.Length), cancellationToken).ConfigureAwait(false);
         }
 
         return output.ToArray();
@@ -116,7 +84,7 @@ public class PreCompressor
     /// <summary>
     /// Compresses data with Zstandard at level 19 (high compression).
     /// </summary>
-    public byte[] CompressZstd(byte[] input)
+    public static byte[] CompressZstd(byte[] input)
     {
         using var compressor = new Compressor(19);
         return compressor.Wrap(input).ToArray();

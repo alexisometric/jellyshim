@@ -1,9 +1,6 @@
-using System;
-using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Jellyfin.Plugin.JellyShim.Cache;
 using Jellyfin.Plugin.JellyShim.Optimization;
 using Microsoft.AspNetCore.Http;
@@ -49,6 +46,7 @@ public partial class ImageOptimizationMiddleware
     private readonly RequestDelegate _next;
     private readonly DiskCacheManager _cache;
     private readonly ImageProcessor _imageProcessor;
+    private readonly PerformanceStatsTracker _stats;
     private readonly ILogger<ImageOptimizationMiddleware> _logger;
 
     /// <summary>Maximum original image size we'll attempt to process (50 MB).
@@ -63,11 +61,13 @@ public partial class ImageOptimizationMiddleware
         RequestDelegate next,
         DiskCacheManager cache,
         ImageProcessor imageProcessor,
+        PerformanceStatsTracker stats,
         ILogger<ImageOptimizationMiddleware> logger)
     {
         _next = next;
         _cache = cache;
         _imageProcessor = imageProcessor;
+        _stats = stats;
         _logger = logger;
         _logger.LogInformation("[JellyShim] ImageOptimizationMiddleware instantiated");
     }
@@ -191,6 +191,9 @@ public partial class ImageOptimizationMiddleware
             context.Response.ContentLength = processed.Length;
             SetImageHeaders(context.Response, config);
 
+            _stats.RecordCacheMiss();
+            _stats.RecordImageRequest();
+
             await context.Response.Body.WriteAsync(processed, context.RequestAborted).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -222,6 +225,8 @@ public partial class ImageOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             context.Response.StatusCode = StatusCodes.Status304NotModified;
+            _stats.RecordNotModified();
+            _stats.RecordImageRequest();
             return;
         }
 
@@ -230,6 +235,9 @@ public partial class ImageOptimizationMiddleware
         context.Response.ContentLength = fileInfo.Length;
         context.Response.Headers.ETag = etag;
         SetImageHeaders(context.Response, config);
+
+        _stats.RecordCacheHit(fileInfo.Length);
+        _stats.RecordImageRequest();
 
         await using var fs = new FileStream(cachedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
         await fs.CopyToAsync(context.Response.Body, context.RequestAborted).ConfigureAwait(false);

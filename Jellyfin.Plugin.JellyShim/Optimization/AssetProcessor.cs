@@ -41,17 +41,13 @@ public class AssetProcessor
         ".css"
     };
 
-    private static readonly HashSet<string> HtmlExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".html", ".htm"
-    };
-
     private readonly DiskCacheManager _cache;
     private readonly PreCompressor _compressor;
     private readonly JsTransformer _jsTransformer;
     private readonly CssTransformer _cssTransformer;
     private readonly SvgTransformer _svgTransformer;
     private readonly ILogger<AssetProcessor> _logger;
+    private readonly FileTransformationMatcher _ftMatcher = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AssetProcessor"/> class.
@@ -149,7 +145,7 @@ public class AssetProcessor
 
                     if (config.EnableZstdCompression)
                     {
-                        var zstd = _compressor.CompressZstd(processed);
+                        var zstd = PreCompressor.CompressZstd(processed);
                         await _cache.StoreAsync(relativePath, "zstd", zstd, cancellationToken).ConfigureAwait(false);
                     }
 
@@ -198,34 +194,9 @@ public class AssetProcessor
         return content;
     }
 
-    private static bool IsFileTransformationBypassed(string relativePath, PluginConfiguration config)
+    private bool IsFileTransformationBypassed(string relativePath, PluginConfiguration config)
     {
-        if (string.IsNullOrWhiteSpace(config.FileTransformationBypassPatterns))
-        {
-            return false;
-        }
-
-        var patterns = config.FileTransformationBypassPatterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var fileName = Path.GetFileName(relativePath);
-
-        // When FT plugins are in use, ALL webpack chunk/bundle files are potentially
-        // patched at runtime — skip them from pre-built cache.
-        if (fileName.EndsWith(".chunk.js", StringComparison.OrdinalIgnoreCase) ||
-            fileName.EndsWith(".bundle.js", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        foreach (var pattern in patterns)
-        {
-            var regexPattern = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", ".*") + "$";
-            if (System.Text.RegularExpressions.Regex.IsMatch(fileName, regexPattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _ftMatcher.IsMatch(relativePath, config.FileTransformationBypassPatterns);
     }
 
     /// <summary>
