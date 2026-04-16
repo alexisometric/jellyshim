@@ -13,7 +13,7 @@
         "changelog": "Comprehensive audit & fixes: fix ffmpeg deadlock (async stderr + real timeout), fix inflight SemaphoreSlim race condition, serve compressed assets from memory (no disk re-read), fix ClearCacheByPrefix no-op prefixes, fix ETag invalidation overly broad matching, wire up compression savings tracking, stream-based ETag hashing, cache compiled FT bypass regexes. Architecture: deduplicate compression methods (PreCompressor static), deduplicate IsFileTransformationBypassed (shared FileTransformationMatcher), conservative JS minification (NUglify KeepAll), image stats tracking in middleware.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.1.2/jellyshim-v1.1.2.zip",
-        "checksum": "PLACEHOLDER",
+        "checksum": "51802e5a449ea8db5467324cb5580703",
         "timestamp": "2026-04-16T12:00:00Z"
       },
       {
