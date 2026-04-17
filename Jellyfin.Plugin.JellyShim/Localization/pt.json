@@ -102,7 +102,7 @@
     "desc.XFrameOptionsValue": "DENY, SAMEORIGIN ou ALLOW-FROM uri. Padrão: SAMEORIGIN.",
     "section.Performance Dashboard": "Painel de desempenho",
     "btn.resetStats": "Redefinir estatísticas",
-    "label.FileTransformationBypassPatterns": "File Transformation Patterns (one per line)",
+    "label.FileTransformationBypassPatterns": "File Transformation Bypass Patterns (one per line)",
     "desc.FileTransformationBypassPatterns": "Filename patterns (wildcard * supported) for web assets patched at runtime by File Transformation plugins (HSS, Custom Tabs, JellyfinEnhanced, etc.). These files are captured AFTER transformation, then minified, compressed, and cached. Clear the JellyShim cache after updating these plugins.",
     "avif.supported": "AVIF encoding available",
     "avif.notSupported": "AVIF encoding unavailable — using WebP/JPEG",

@@ -8,13 +8,14 @@ namespace Jellyfin.Plugin.JellyShim.Optimization;
 /// the AssetOptimizationMiddleware (live request handling) to keep matching logic
 /// consistent and avoid duplication.
 ///
-/// <para><b>Thread safety:</b> Each consumer creates its own instance, so the
-/// cached pattern state is not shared across threads.</para>
+/// <para><b>Thread safety:</b> Uses a volatile reference to an immutable snapshot
+/// for lock-free reads. Concurrent config changes may cause a benign duplicate
+/// recompilation, but never a torn read (old Raw + new Regexes).</para>
 /// </summary>
 public class FileTransformationMatcher
 {
-    private string? _cachedPatternsRaw;
-    private Regex[]? _cachedRegexes;
+    private sealed record CachedRegexState(string Raw, Regex[] Regexes);
+    private volatile CachedRegexState? _cached;
 
     /// <summary>
     /// Returns <c>true</c> if the given relative file path matches a configured
@@ -39,19 +40,22 @@ public class FileTransformationMatcher
             return true;
         }
 
-        // Recompile regexes only when the config string changes
-        if (_cachedPatternsRaw != patterns)
+        // Atomic snapshot read — volatile ensures we see a consistent (Raw, Regexes) pair.
+        // Worst case on concurrent config change: two threads both recompile (idempotent).
+        var state = _cached;
+        if (state?.Raw != patterns)
         {
             var parsed = patterns.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            _cachedRegexes = parsed.Select(p =>
+            var regexes = parsed.Select(p =>
             {
                 var regexPattern = "^" + Regex.Escape(p).Replace("\\*", ".*") + "$";
                 return new Regex(regexPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
             }).ToArray();
-            _cachedPatternsRaw = patterns;
+            state = new CachedRegexState(patterns, regexes);
+            _cached = state;
         }
 
-        foreach (var regex in _cachedRegexes!)
+        foreach (var regex in state.Regexes)
         {
             if (regex.IsMatch(fileName))
             {

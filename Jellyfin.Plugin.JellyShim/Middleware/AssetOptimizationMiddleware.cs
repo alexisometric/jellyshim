@@ -86,10 +86,11 @@ public class AssetOptimizationMiddleware
     // Config strings (newline-separated lists) are parsed once and re-parsed only
     // when the raw string changes. This avoids String.Split on every request.
 
-    /// <summary>Parsed plugin asset path prefixes from <see cref="Configuration.PluginConfiguration.PluginAssetPaths"/>.</summary>
-    private string[]? _cachedPluginPaths;
-    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
-    private string? _cachedPluginPathsRaw;
+    /// <summary>Thread-safe volatile cache: (raw config string, parsed values).</summary>
+    private sealed record CachedStringArray(string Raw, string[] Values);
+
+    /// <summary>Parsed plugin asset path prefixes (thread-safe volatile snapshot).</summary>
+    private volatile CachedStringArray? _cachedPluginPaths;
 
     /// <summary>Parsed File Transformation bypass matcher (shared logic with AssetProcessor).</summary>
     private readonly FileTransformationMatcher _ftMatcher = new();
@@ -171,10 +172,11 @@ public class AssetOptimizationMiddleware
     /// </summary>
     public async Task InvokeAsync(HttpContext context)
     {
-        if (Interlocked.Increment(ref _requestCount) <= 3)
+        var count = Interlocked.Increment(ref _requestCount);
+        if (count <= 3)
         {
             _logger.LogInformation("[JellyShim] AssetOptimizationMiddleware handling request #{Count}: {Method} {Path}",
-                _requestCount, context.Request.Method, context.Request.Path);
+                count, context.Request.Method, context.Request.Path);
         }
         var request = context.Request;
         var path = request.Path.Value;
@@ -387,6 +389,14 @@ public class AssetOptimizationMiddleware
             finally
             {
                 keyLock.Release();
+                // Remove idle lock to prevent unbounded growth of _inflightLocks.
+                // Race: another thread may GetOrAdd a new SemaphoreSlim between
+                // our Release and TryRemove — benign, they'll just create a fresh one
+                // and the double-check-after-lock pattern handles duplicate work.
+                if (keyLock.CurrentCount == 1)
+                {
+                    _inflightLocks.TryRemove(pluginCacheKey, out _);
+                }
             }
 
             return;
@@ -489,6 +499,10 @@ public class AssetOptimizationMiddleware
             finally
             {
                 ftKeyLock.Release();
+                if (ftKeyLock.CurrentCount == 1)
+                {
+                    _inflightLocks.TryRemove(ftCacheKey, out _);
+                }
             }
 
             return;
@@ -531,10 +545,17 @@ public class AssetOptimizationMiddleware
         var response = context.Response;
         var etag = _cache.ComputeETag(cachedPath);
 
-        // ETag-based conditional request
+        // ETag-based conditional request (RFC 7232 §4.1: 304 MUST include
+        // ETag, Vary, Cache-Control, and any headers that would vary the response)
         if (request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            response.Headers.ETag = etag;
+            response.Headers.Vary = "Accept-Encoding";
+            if (config.EnableCacheHeaders)
+            {
+                SetCacheHeaders(response, path, config);
+            }
             _stats.RecordNotModified();
             return;
         }
@@ -630,7 +651,7 @@ public class AssetOptimizationMiddleware
             var upstreamContentEncoding = context.Response.Headers.ContentEncoding.ToString();
             if (!string.IsNullOrEmpty(upstreamContentEncoding))
             {
-                rawBytes = DecompressUpstreamResponse(rawBytes, upstreamContentEncoding);
+                rawBytes = await DecompressUpstreamResponseAsync(rawBytes, upstreamContentEncoding).ConfigureAwait(false);
                 context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
             }
 
@@ -695,57 +716,26 @@ public class AssetOptimizationMiddleware
             }
 
             // Compress and cache all variants
-            byte[]? brotli = null, gzip = null, zstd = null;
-            if (config.EnableCompression)
+            var (brotli, gzip, zstd) = CompressAndCacheVariants(cacheKey, optimized, config, rawBytes.Length);
+
+            if (config.EnableCompression && brotli is not null)
             {
-                brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
-                gzip = CompressGzip(optimized);
-                _cache.Store(cacheKey, "br", brotli);
-                _cache.Store(cacheKey, "gz", gzip);
-
-                if (config.EnableZstdCompression)
-                {
-                    zstd = CompressZstd(optimized);
-                    _cache.Store(cacheKey, "zstd", zstd);
-                }
-
-                _stats.RecordCompressionSaving(rawBytes.Length, brotli.Length);
-
                 _logger.LogInformation(
                     "[JellyShim] Plugin asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
-                    path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
+                    path, rawBytes.Length, optimized.Length, brotli.Length, gzip!.Length);
             }
 
             // Serve the best version directly from memory (no disk re-read)
-            byte[] toServe;
-            if (encoding is not null)
-            {
-                toServe = encoding switch
-                {
-                    "br" when brotli is not null => brotli,
-                    "gz" when gzip is not null => gzip,
-                    "zstd" when zstd is not null => zstd,
-                    _ => optimized
-                };
-                if (toServe == optimized)
-                {
-                    contentEncoding = null;
-                }
-            }
-            else
-            {
-                toServe = optimized;
-                contentEncoding = null;
-            }
+            var (toServe, actualEncoding) = SelectBestVariant(encoding, contentEncoding, optimized, brotli, gzip, zstd);
 
             context.Response.Body = originalBody;
             context.Response.StatusCode = StatusCodes.Status200OK;
             context.Response.ContentType = GetContentType(effectiveExt);
             context.Response.ContentLength = toServe.Length;
 
-            if (contentEncoding is not null)
+            if (actualEncoding is not null)
             {
-                context.Response.Headers.ContentEncoding = contentEncoding;
+                context.Response.Headers.ContentEncoding = actualEncoding;
             }
 
             context.Response.Headers.Vary = "Accept-Encoding";
@@ -826,7 +816,7 @@ public class AssetOptimizationMiddleware
             var upstreamContentEncoding = context.Response.Headers.ContentEncoding.ToString();
             if (!string.IsNullOrEmpty(upstreamContentEncoding))
             {
-                rawBytes = DecompressUpstreamResponse(rawBytes, upstreamContentEncoding);
+                rawBytes = await DecompressUpstreamResponseAsync(rawBytes, upstreamContentEncoding).ConfigureAwait(false);
                 context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
             }
 
@@ -840,57 +830,26 @@ public class AssetOptimizationMiddleware
             _cache.Store(cacheKey, "raw", optimized);
 
             // Compress and cache all variants
-            byte[]? brotli = null, gzip = null, zstd = null;
-            if (config.EnableCompression)
+            var (brotli, gzip, zstd) = CompressAndCacheVariants(cacheKey, optimized, config, rawBytes.Length);
+
+            if (config.EnableCompression && brotli is not null)
             {
-                brotli = CompressBrotli(optimized, config.BrotliCompressionLevel);
-                gzip = CompressGzip(optimized);
-                _cache.Store(cacheKey, "br", brotli);
-                _cache.Store(cacheKey, "gz", gzip);
-
-                if (config.EnableZstdCompression)
-                {
-                    zstd = CompressZstd(optimized);
-                    _cache.Store(cacheKey, "zstd", zstd);
-                }
-
-                _stats.RecordCompressionSaving(rawBytes.Length, brotli.Length);
-
                 _logger.LogInformation(
-                    "[JellyShim] File Transformation asset optimized: {Path} — {Original}B → minified {Minified}B → br {Br}B / gz {Gz}B",
-                    path, rawBytes.Length, optimized.Length, brotli.Length, gzip.Length);
+                    "[JellyShim] File Transformation asset optimized: {Path} — {Original}B → br {Br}B / gz {Gz}B",
+                    path, rawBytes.Length, brotli.Length, gzip!.Length);
             }
 
             // Serve the best version directly from memory (no disk re-read)
-            byte[] toServe;
-            if (encoding is not null)
-            {
-                toServe = encoding switch
-                {
-                    "br" when brotli is not null => brotli,
-                    "gz" when gzip is not null => gzip,
-                    "zstd" when zstd is not null => zstd,
-                    _ => optimized
-                };
-                if (toServe == optimized)
-                {
-                    contentEncoding = null;
-                }
-            }
-            else
-            {
-                toServe = optimized;
-                contentEncoding = null;
-            }
+            var (toServe, actualEncoding) = SelectBestVariant(encoding, contentEncoding, optimized, brotli, gzip, zstd);
 
             context.Response.Body = originalBody;
             context.Response.StatusCode = StatusCodes.Status200OK;
             context.Response.ContentType = GetContentType(ext);
             context.Response.ContentLength = toServe.Length;
 
-            if (contentEncoding is not null)
+            if (actualEncoding is not null)
             {
-                context.Response.Headers.ContentEncoding = contentEncoding;
+                context.Response.Headers.ContentEncoding = actualEncoding;
             }
 
             context.Response.Headers.Vary = "Accept-Encoding";
@@ -952,6 +911,12 @@ public class AssetOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            response.Headers.ETag = etag;
+            response.Headers.Vary = "Accept-Encoding";
+            if (config.EnableCacheHeaders)
+            {
+                SetCacheHeaders(response, path, config, isFileTransformation);
+            }
             _stats.RecordNotModified();
             return;
         }
@@ -1012,6 +977,13 @@ public class AssetOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             response.StatusCode = StatusCodes.Status304NotModified;
+            response.Headers.ETag = etag;
+            response.Headers.Vary = "Accept-Encoding";
+            if (config.EnableCacheHeaders)
+            {
+                response.Headers[HeaderNames.CacheControl] =
+                    $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+            }
             _stats.RecordNotModified();
             return;
         }
@@ -1060,7 +1032,7 @@ public class AssetOptimizationMiddleware
     /// Decompresses a response body that was compressed by upstream middleware.
     /// Returns the original bytes if the encoding is unknown or decompression fails.
     /// </summary>
-    private byte[] DecompressUpstreamResponse(byte[] data, string contentEncoding)
+    private async Task<byte[]> DecompressUpstreamResponseAsync(byte[] data, string contentEncoding)
     {
         try
         {
@@ -1077,7 +1049,7 @@ public class AssetOptimizationMiddleware
                 using var input = new MemoryStream(data);
                 using var brotli = new BrotliStream(input, CompressionMode.Decompress);
                 using var output = new MemoryStream();
-                brotli.CopyTo(output);
+                await brotli.CopyToAsync(output).ConfigureAwait(false);
                 _logger.LogDebug("[JellyShim] Decompressed upstream Brotli response: {Compressed}B → {Raw}B", data.Length, output.Length);
                 return output.ToArray();
             }
@@ -1087,7 +1059,7 @@ public class AssetOptimizationMiddleware
                 using var input = new MemoryStream(data);
                 using var gzip = new GZipStream(input, CompressionMode.Decompress);
                 using var output = new MemoryStream();
-                gzip.CopyTo(output);
+                await gzip.CopyToAsync(output).ConfigureAwait(false);
                 _logger.LogDebug("[JellyShim] Decompressed upstream Gzip response: {Compressed}B → {Raw}B", data.Length, output.Length);
                 return output.ToArray();
             }
@@ -1100,6 +1072,55 @@ public class AssetOptimizationMiddleware
             _logger.LogWarning(ex, "[JellyShim] Failed to decompress upstream response (Content-Encoding: {Encoding})", contentEncoding);
             return data;
         }
+    }
+
+    /// <summary>
+    /// Compresses content with Brotli/Gzip/Zstd and stores all variants in the disk cache.
+    /// Returns the compressed bytes for each encoding (null if compression is disabled).
+    /// </summary>
+    private (byte[]? Brotli, byte[]? Gzip, byte[]? Zstd) CompressAndCacheVariants(
+        string cacheKey, byte[] content, PluginConfiguration config, long originalSize)
+    {
+        byte[]? brotli = null, gzip = null, zstd = null;
+        if (config.EnableCompression)
+        {
+            brotli = CompressBrotli(content, config.BrotliCompressionLevel);
+            gzip = CompressGzip(content);
+            _cache.Store(cacheKey, "br", brotli);
+            _cache.Store(cacheKey, "gz", gzip);
+
+            if (config.EnableZstdCompression)
+            {
+                zstd = CompressZstd(content);
+                _cache.Store(cacheKey, "zstd", zstd);
+            }
+
+            _stats.RecordCompressionSaving(originalSize, brotli.Length);
+        }
+
+        return (brotli, gzip, zstd);
+    }
+
+    /// <summary>
+    /// Selects the best compressed variant to serve based on the negotiated encoding.
+    /// Returns the bytes to send and the Content-Encoding header value (null for raw).
+    /// </summary>
+    private static (byte[] Data, string? ContentEncoding) SelectBestVariant(
+        string? encoding, string? contentEncoding, byte[] raw, byte[]? brotli, byte[]? gzip, byte[]? zstd)
+    {
+        if (encoding is not null)
+        {
+            var selected = encoding switch
+            {
+                "br" when brotli is not null => brotli,
+                "gz" when gzip is not null => gzip,
+                "zstd" when zstd is not null => zstd,
+                _ => raw
+            };
+            return selected == raw ? (raw, (string?)null) : (selected, contentEncoding);
+        }
+
+        return (raw, null);
     }
 
     /// <summary>
@@ -1127,6 +1148,15 @@ public class AssetOptimizationMiddleware
             if (semicolon >= 0)
             {
                 token = part[..semicolon].Trim();
+
+                // Respect q=0 which means "not acceptable" (RFC 7231 §5.3.4)
+                var qPart = part[(semicolon + 1)..].Trim();
+                if (qPart.StartsWith("q=", StringComparison.OrdinalIgnoreCase) &&
+                    double.TryParse(qPart[2..], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var q) && q <= 0)
+                {
+                    continue;
+                }
             }
 
             if (token.Equals("zstd", StringComparison.OrdinalIgnoreCase))
@@ -1178,14 +1208,16 @@ public class AssetOptimizationMiddleware
             return false;
         }
 
-        // Re-parse only when config string changes
-        if (_cachedPluginPathsRaw != config.PluginAssetPaths)
+        // Atomic snapshot read — volatile ensures we see a consistent (Raw, Values) pair.
+        var cached = _cachedPluginPaths;
+        if (cached?.Raw != config.PluginAssetPaths)
         {
-            _cachedPluginPaths = config.PluginAssetPaths.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            _cachedPluginPathsRaw = config.PluginAssetPaths;
+            var parsed = config.PluginAssetPaths.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            cached = new CachedStringArray(config.PluginAssetPaths, parsed);
+            _cachedPluginPaths = cached;
         }
 
-        foreach (var prefix in _cachedPluginPaths!)
+        foreach (var prefix in cached.Values)
         {
             if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
@@ -1355,10 +1387,8 @@ public class AssetOptimizationMiddleware
         }
     }
 
-    /// <summary>Parsed preconnect origins from config.</summary>
-    private string[]? _cachedPreconnectOrigins;
-    /// <summary>Raw config string used to detect when re-parsing is needed.</summary>
-    private string? _cachedPreconnectOriginsRaw;
+    /// <summary>Parsed preconnect origins (thread-safe volatile snapshot).</summary>
+    private volatile CachedStringArray? _cachedPreconnectOrigins;
 
     /// <summary>
     /// Adds Link: rel=preconnect headers for configured origins.
@@ -1370,13 +1400,15 @@ public class AssetOptimizationMiddleware
             return;
         }
 
-        if (_cachedPreconnectOriginsRaw != config.PreconnectOrigins)
+        var cached = _cachedPreconnectOrigins;
+        if (cached?.Raw != config.PreconnectOrigins)
         {
-            _cachedPreconnectOrigins = config.PreconnectOrigins.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            _cachedPreconnectOriginsRaw = config.PreconnectOrigins;
+            var parsed = config.PreconnectOrigins.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            cached = new CachedStringArray(config.PreconnectOrigins, parsed);
+            _cachedPreconnectOrigins = cached;
         }
 
-        foreach (var origin in _cachedPreconnectOrigins!)
+        foreach (var origin in cached.Values)
         {
             response.Headers.Append("Link", $"<{origin}>; rel=preconnect");
         }

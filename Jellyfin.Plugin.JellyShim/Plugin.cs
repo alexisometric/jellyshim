@@ -44,8 +44,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages, IDisposable
 
     /// <inheritdoc />
     public override string Description =>
-        "Optimizes Jellyfin web client performance — pre-compressed asset serving, " +
-        "cache headers, JS/CSS minification, HTML optimization (modulepreload, defer, SRI).";
+        "Optimizes Jellyfin web client performance — JS/CSS/SVG minification, " +
+        "Brotli/Zstd/Gzip pre-compression, native image processing, optimal cache headers.";
 
     /// <summary>
     /// Gets the current plugin instance.

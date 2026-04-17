@@ -43,8 +43,9 @@ public class PerformanceStatsTracker
     {
         get
         {
-            var total = CacheHits + CacheMisses;
-            return total == 0 ? 0 : (double)CacheHits / total * 100;
+            var hits = CacheHits;
+            var total = hits + CacheMisses;
+            return total == 0 ? 0 : (double)hits / total * 100;
         }
     }
 
@@ -97,19 +98,30 @@ public class PerformanceStatsTracker
     /// <summary>
     /// Returns a snapshot of all counters.
     /// </summary>
-    public PerformanceSnapshot GetSnapshot() => new()
+    public PerformanceSnapshot GetSnapshot()
     {
-        CacheHits = CacheHits,
-        CacheMisses = CacheMisses,
-        HitRatePercent = Math.Round(HitRate, 1),
-        BytesServedFromCache = BytesServedFromCache,
-        BytesSavedByCompression = BytesSavedByCompression,
-        WebAssetRequests = WebAssetRequests,
-        PluginAssetRequests = PluginAssetRequests,
-        FtAssetRequests = FtAssetRequests,
-        ImageRequests = ImageRequests,
-        NotModifiedResponses = NotModifiedResponses
-    };
+        // Read all counters once to avoid TOCTOU — individual Interlocked.Read
+        // calls are atomic, but reading them separately can yield an inconsistent
+        // snapshot (e.g. HitRate > 100%). Reading once is close enough for stats.
+        var hits = CacheHits;
+        var misses = CacheMisses;
+        var total = hits + misses;
+        var hitRate = total == 0 ? 0 : (double)hits / total * 100;
+
+        return new()
+        {
+            CacheHits = hits,
+            CacheMisses = misses,
+            HitRatePercent = Math.Round(hitRate, 1),
+            BytesServedFromCache = BytesServedFromCache,
+            BytesSavedByCompression = BytesSavedByCompression,
+            WebAssetRequests = WebAssetRequests,
+            PluginAssetRequests = PluginAssetRequests,
+            FtAssetRequests = FtAssetRequests,
+            ImageRequests = ImageRequests,
+            NotModifiedResponses = NotModifiedResponses
+        };
+    }
 }
 
 /// <summary>

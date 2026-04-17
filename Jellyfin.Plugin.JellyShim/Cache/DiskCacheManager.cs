@@ -13,6 +13,7 @@ namespace Jellyfin.Plugin.JellyShim.Cache;
 ///   raw/    ← minified but uncompressed (used for ETag computation + fallback serving)
 ///   br/     ← Brotli-compressed variant
 ///   gz/     ← Gzip-compressed variant
+///   zstd/   ← Zstandard-compressed variant
 ///   meta/   ← metadata (e.g. detected Content-Type for extensionless plugin URLs)
 ///   img/    ← processed images (resized/re-encoded by ImageProcessor)
 /// </code>

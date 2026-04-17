@@ -6,6 +6,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
 namespace Jellyfin.Plugin.JellyShim.Optimization;
@@ -54,6 +55,36 @@ public class ImageProcessor
         _logger = logger;
         _configManager = configManager;
         _avifSupported = new Lazy<bool>(ProbeAvifSupport);
+
+        // Clean up orphaned temp files from previous crashes (e.g. OOM, kill signal).
+        // EncodeAvif uses jellyshim_*.png / .avif in the system temp directory;
+        // normal execution always cleans up in finally, but a process crash leaves them.
+        CleanupOrphanedTempFiles();
+    }
+
+    /// <summary>
+    /// Deletes any leftover <c>jellyshim_*</c> temp files from previous runs.
+    /// </summary>
+    private void CleanupOrphanedTempFiles()
+    {
+        try
+        {
+            foreach (var file in Directory.GetFiles(Path.GetTempPath(), "jellyshim_*.*"))
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch
+                {
+                    // File may be locked by another process — skip
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "[JellyShim] Failed to clean up orphaned temp files");
+        }
     }
 
     /// <summary>
@@ -97,23 +128,17 @@ public class ImageProcessor
             return (input, format);
         }
 
-        // Safety net: AVIF (yuv420p) discards alpha transparency.
-        // If the image has an alpha channel (32bpp), fall back to WebP.
-        // The middleware already forces WebP for known-transparent types (Logo, Art),
-        // but this catches edge cases (e.g. transparent Primary/Thumb images).
-        if (format.Equals("avif", StringComparison.OrdinalIgnoreCase))
-        {
-            var info = Image.Identify(input);
-            if (info?.PixelType.BitsPerPixel > 24)
-            {
-                _logger.LogDebug(
-                    "[JellyShim] Alpha channel detected ({Bpp}bpp), falling back to WebP instead of AVIF",
-                    info.PixelType.BitsPerPixel);
-                format = "webp";
-            }
-        }
+        using var image = Image.Load<Rgba32>(input);
 
-        using var image = Image.Load(input);
+        // Safety net: AVIF (yuv420p) discards alpha transparency.
+        // The middleware already forces WebP for known-transparent types (Logo, Art),
+        // but this catches edge cases (e.g. transparent Primary/Thumb images,
+        // or palette-based PNGs with tRNS transparency that BitsPerPixel misses).
+        if (format.Equals("avif", StringComparison.OrdinalIgnoreCase) && HasTransparentPixels(image))
+        {
+            _logger.LogDebug("[JellyShim] Transparent pixels detected, falling back to WebP instead of AVIF");
+            format = "webp";
+        }
         var originalWidth = image.Width;
         var originalHeight = image.Height;
 
@@ -163,6 +188,34 @@ public class ImageProcessor
             quality);
 
         return (result, format);
+    }
+
+    /// <summary>
+    /// Scans the image pixels to detect any transparency (alpha &lt; 255).
+    /// This catches all forms of transparency: RGBA, palette-based tRNS,
+    /// grayscale-alpha — unlike BitsPerPixel which only detects 32bpp RGBA.
+    /// Returns as soon as the first transparent pixel is found.
+    /// </summary>
+    private static bool HasTransparentPixels(Image<Rgba32> image)
+    {
+        bool found = false;
+        image.ProcessPixelRows(accessor =>
+        {
+            for (int y = 0; y < accessor.Height; y++)
+            {
+                if (found) return;
+                var row = accessor.GetRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                    if (row[x].A < 255)
+                    {
+                        found = true;
+                        return;
+                    }
+                }
+            }
+        });
+        return found;
     }
 
     /// <summary>

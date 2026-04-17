@@ -8,6 +8,12 @@ namespace Jellyfin.Plugin.JellyShim.Transformation;
 /// Minifies SVG content by removing comments, metadata, editor-specific attributes,
 /// unnecessary whitespace, and XML declarations. Uses regex-based cleanup rather than
 /// a full XML parser for performance and resilience against malformed SVG.
+///
+/// <para><b>Security note:</b> Regex-based XML processing can be confused by crafted
+/// SVGs containing marker strings (e.g. <c>&lt;!--</c>) inside attribute values or CDATA.
+/// This is acceptable here because SVGs are served by Jellyfin or its plugins — not
+/// user-uploaded content. If user-uploaded SVGs are ever supported, switch to a proper
+/// XML parser or sanitizer.</para>
 /// </summary>
 public partial class SvgTransformer
 {

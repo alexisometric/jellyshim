@@ -156,6 +156,10 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     [InlineData("/Plugins/list")]
     [InlineData("/Items/abc123/playbackinfo")]
     [InlineData("/Users/abc123/items")]
+    [InlineData("/Shows/NextUp")]
+    [InlineData("/Movies/Recommendations")]
+    [InlineData("/Trailers")]
+    [InlineData("/UserViews")]
     public async Task InvokeAsync_ApiPaths_SetsNoStoreAndPassesThrough(string path)
     {
         var config = SetupPluginWithConfig();
@@ -170,6 +174,37 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         await middleware.InvokeAsync(context);
 
         Assert.True(nextCalled);
+    }
+
+    // ── Image path exclusion tests ────────────────────────────────
+
+    [Theory]
+    [InlineData("/Items/abc/Images/Primary")]
+    [InlineData("/Users/abc/Images/Profile")]
+    [InlineData("/Artists/Adele/Images/Primary")]
+    [InlineData("/Genres/Action/Images/Primary")]
+    [InlineData("/MusicGenres/Rock/Images/Primary")]
+    [InlineData("/Persons/JohnDoe/Images/Primary")]
+    [InlineData("/Studios/Marvel/Images/Primary")]
+    [InlineData("/Years/2024/Images/Primary")]
+    [InlineData("/emby/Items/abc/Images/Primary")]
+    [InlineData("/mediabrowser/Artists/Adele/Images/Primary")]
+    public async Task InvokeAsync_ImagePaths_DoNotGetNoStore(string path)
+    {
+        var config = SetupPluginWithConfig();
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "image/jpeg";
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        // Image paths should NOT have no-store — ImageOptimizationMiddleware (or Jellyfin) handles caching
+        var cacheControl = context.Response.Headers.CacheControl.ToString();
+        Assert.DoesNotContain("no-store", cacheControl);
     }
 
     // ── Web asset cache serving ───────────────────────────────────
@@ -210,6 +245,10 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         await middleware.InvokeAsync(context);
 
         Assert.Equal(StatusCodes.Status304NotModified, context.Response.StatusCode);
+        // RFC 7232 §4.1: 304 must include ETag, Vary, Cache-Control
+        Assert.Equal(etag, context.Response.Headers.ETag.ToString());
+        Assert.Equal("Accept-Encoding", context.Response.Headers.Vary.ToString());
+        Assert.True(context.Response.Headers.ContainsKey("Cache-Control"));
     }
 
     [Fact]
@@ -443,6 +482,44 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
         // Should pass through unmodified since it's not JS/CSS
         Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ExtensionlessPluginUrl_JsonApiNotCached()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/HomeScreen/",
+            EnableMinification = true,
+            EnableCompression = false,
+            EnableCacheHeaders = true
+        });
+
+        var jsonData = """{"sections":[{"type":"latestMedia"}]}""";
+        var jsonBytes = Encoding.UTF8.GetBytes(jsonData);
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/json";
+            ctx.Response.Body.Write(jsonBytes);
+            return Task.CompletedTask;
+        });
+
+        // Extensionless URL like /HomeScreen/SectionConfig (API endpoint, not static asset)
+        var context = CreateHttpContext("GET", "/HomeScreen/SectionConfig");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        // JSON API responses from plugin paths must NOT be cached on disk
+        Assert.False(_cache.TryGetCachedFile("plugin/HomeScreen/SectionConfig", "raw", out _));
+
+        // Response body should still contain the original JSON data
+        context.Response.Body.Position = 0;
+        var body = new StreamReader(context.Response.Body).ReadToEnd();
+        Assert.Contains("latestMedia", body);
     }
 
     [Fact]
@@ -799,6 +876,10 @@ public class AssetOptimizationMiddlewareTests : IDisposable
         await middleware.InvokeAsync(context);
 
         Assert.Equal(StatusCodes.Status304NotModified, context.Response.StatusCode);
+        // RFC 7232 §4.1: 304 must include ETag, Vary, Cache-Control
+        Assert.Equal(etag, context.Response.Headers.ETag.ToString());
+        Assert.Equal("Accept-Encoding", context.Response.Headers.Vary.ToString());
+        Assert.True(context.Response.Headers.ContainsKey("Cache-Control"));
     }
 
     [Fact]
@@ -1072,5 +1153,130 @@ public class AssetOptimizationMiddlewareTests : IDisposable
 
         var cachedContent = File.ReadAllText(rawPath);
         Assert.DoesNotContain("This comment", cachedContent);
+    }
+
+    // ── Plugin asset caching policy tests ─────────────────────────
+
+    [Theory]
+    [InlineData("/TestPlugin/data.json")]
+    [InlineData("/TestPlugin/config.xml")]
+    [InlineData("/TestPlugin/icon.svg")]
+    [InlineData("/HomeScreen/settings.json")]
+    public async Task InvokeAsync_PluginNonJsCss_PassesThroughWithoutCaching(string path)
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/TestPlugin/\n/HomeScreen/",
+            EnableCacheHeaders = true
+        });
+
+        var nextCalled = false;
+        var middleware = CreateMiddleware(ctx =>
+        {
+            nextCalled = true;
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        // Must NOT be cached to disk
+        var cacheKey = "plugin" + path;
+        Assert.False(_cache.TryGetCachedFile(cacheKey, "raw", out _));
+    }
+
+    [Theory]
+    [InlineData("/TestPlugin/home.abc123.chunk.js")]
+    [InlineData("/TestPlugin/user-settings.def456.chunk.js")]
+    [InlineData("/TestPlugin/main.abc.bundle.js")]
+    [InlineData("/HomeScreen/component.xyz.chunk.css")]
+    public async Task InvokeAsync_PluginChunkFiles_PassesThroughWithoutCaching(string path)
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/TestPlugin/\n/HomeScreen/",
+            EnableCacheHeaders = true
+        });
+
+        var nextCalled = false;
+        var middleware = CreateMiddleware(ctx =>
+        {
+            nextCalled = true;
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        // Chunk files must NOT be cached to disk
+        var cacheKey = "plugin" + path;
+        Assert.False(_cache.TryGetCachedFile(cacheKey, "raw", out _));
+    }
+
+    [Theory]
+    [InlineData("/TestPlugin/app.js")]
+    [InlineData("/TestPlugin/style.css")]
+    [InlineData("/HomeScreen/main.mjs")]
+    public async Task InvokeAsync_PluginJsCss_StillProcessed(string path)
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/TestPlugin/\n/HomeScreen/",
+            EnableCacheHeaders = true,
+            EnableMinification = false,
+            EnableCompression = false
+        });
+
+        var upstreamBytes = Encoding.UTF8.GetBytes("/* content */");
+        var nextCalled = false;
+        var middleware = CreateMiddleware(ctx =>
+        {
+            nextCalled = true;
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = path.EndsWith(".css") ? "text/css" : "application/javascript";
+            ctx.Response.Body.Write(upstreamBytes);
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        // JS/CSS should be processed (captured and cached), not passed through with no-store
+        var cacheKey = "plugin" + path;
+        Assert.True(_cache.TryGetCachedFile(cacheKey, "raw", out _));
+    }
+
+    [Theory]
+    [InlineData("/TestPlugin/logo.png")]
+    [InlineData("/TestPlugin/image.gif")]
+    [InlineData("/HomeScreen/icon.ico")]
+    public async Task InvokeAsync_PluginNonCompressibleAssets_PassesThroughWithoutCaching(string path)
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/TestPlugin/\n/HomeScreen/",
+            EnableCacheHeaders = true
+        });
+
+        var nextCalled = false;
+        var middleware = CreateMiddleware(ctx =>
+        {
+            nextCalled = true;
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            return Task.CompletedTask;
+        });
+        var context = CreateHttpContext("GET", path);
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        // Non-compressible plugin assets must NOT be cached to disk
+        var cacheKey = "plugin" + path;
+        Assert.False(_cache.TryGetCachedFile(cacheKey, "raw", out _));
     }
 }

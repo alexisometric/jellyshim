@@ -78,7 +78,7 @@
     "cache.cleared": "Cache vidé avec succès.",
     "cache.taskNotFound": "Tâche de vidage du cache introuvable. Veuillez redémarrer Jellyfin.",
     "cache.clearFailed": "Échec du vidage du cache.",
-    "label.FileTransformationBypassPatterns": "Patterns File Transformation (un par ligne)",
+    "label.FileTransformationBypassPatterns": "Patterns de contournement File Transformation (un par ligne)",
     "desc.FileTransformationBypassPatterns": "Patterns de noms de fichiers (joker * supporté) pour les ressources web patchées à l'exécution par les plugins File Transformation (HSS, Custom Tabs, JellyfinEnhanced, etc.). Ces fichiers sont capturés APRÈS transformation, puis minifiés, compressés et mis en cache. Videz le cache JellyShim après la mise à jour de ces plugins.",
     "avif.supported": "Encodage AVIF disponible",
     "avif.notSupported": "Encodage AVIF indisponible — utilisation de WebP/JPEG",

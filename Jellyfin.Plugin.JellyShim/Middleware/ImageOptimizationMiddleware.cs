@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -6,6 +7,7 @@ using Jellyfin.Plugin.JellyShim.Optimization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
+using ZstdSharp;
 
 namespace Jellyfin.Plugin.JellyShim.Middleware;
 
@@ -131,9 +133,16 @@ public partial class ImageOptimizationMiddleware
         using var captureStream = new MemoryStream();
         context.Response.Body = captureStream;
 
+        // Strip Accept-Encoding so upstream doesn't compress — ImageSharp needs raw bytes.
+        var savedAcceptEncoding = context.Request.Headers.AcceptEncoding;
+        context.Request.Headers.AcceptEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+
         try
         {
             await _next(context).ConfigureAwait(false);
+
+            // Restore Accept-Encoding
+            context.Request.Headers.AcceptEncoding = savedAcceptEncoding;
 
             // Restore original body before writing anything
             context.Response.Body = originalBody;
@@ -150,6 +159,15 @@ public partial class ImageOptimizationMiddleware
             }
 
             var originalBytes = captureStream.ToArray();
+
+            // Safety net: decompress if upstream still compressed despite removing Accept-Encoding.
+            // Without this, Image.Load<Rgba32>() would fail on gzip/brotli-wrapped bytes.
+            var upstreamContentEncoding = context.Response.Headers.ContentEncoding.ToString();
+            if (!string.IsNullOrEmpty(upstreamContentEncoding))
+            {
+                originalBytes = DecompressUpstreamResponse(originalBytes, upstreamContentEncoding);
+                context.Response.Headers.ContentEncoding = Microsoft.Extensions.Primitives.StringValues.Empty;
+            }
 
             byte[] processed;
             try
@@ -199,6 +217,7 @@ public partial class ImageOptimizationMiddleware
         catch (Exception ex)
         {
             context.Response.Body = originalBody;
+            context.Request.Headers.AcceptEncoding = savedAcceptEncoding;
             if (ex is not OperationCanceledException)
             {
                 _logger.LogWarning(ex, "[JellyShim] Image optimization failed for {Path}, falling through", path);
@@ -225,6 +244,8 @@ public partial class ImageOptimizationMiddleware
         if (context.Request.Headers.IfNoneMatch == etag)
         {
             context.Response.StatusCode = StatusCodes.Status304NotModified;
+            context.Response.Headers.ETag = etag;
+            SetImageHeaders(context.Response, config);
             _stats.RecordNotModified();
             _stats.RecordImageRequest();
             return;
@@ -372,5 +393,51 @@ public partial class ImageOptimizationMiddleware
         var raw = $"{path}?{query}|{maxWidth}x{quality}.{format}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexStringLower(hash[..16]);
+    }
+
+    /// <summary>
+    /// Decompresses a response body that was compressed by upstream middleware.
+    /// Returns the original bytes if the encoding is unknown or decompression fails.
+    /// </summary>
+    private byte[] DecompressUpstreamResponse(byte[] data, string contentEncoding)
+    {
+        try
+        {
+            if (contentEncoding.Contains("zstd", StringComparison.OrdinalIgnoreCase))
+            {
+                using var decompressor = new Decompressor();
+                var decompressed = decompressor.Unwrap(data);
+                _logger.LogDebug("[JellyShim] Image: Decompressed upstream Zstd: {Compressed}B → {Raw}B", data.Length, decompressed.Length);
+                return decompressed.ToArray();
+            }
+
+            if (contentEncoding.Contains("br", StringComparison.OrdinalIgnoreCase))
+            {
+                using var input = new MemoryStream(data);
+                using var brotli = new BrotliStream(input, CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                brotli.CopyTo(output);
+                _logger.LogDebug("[JellyShim] Image: Decompressed upstream Brotli: {Compressed}B → {Raw}B", data.Length, output.Length);
+                return output.ToArray();
+            }
+
+            if (contentEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+            {
+                using var input = new MemoryStream(data);
+                using var gzip = new GZipStream(input, CompressionMode.Decompress);
+                using var output = new MemoryStream();
+                gzip.CopyTo(output);
+                _logger.LogDebug("[JellyShim] Image: Decompressed upstream Gzip: {Compressed}B → {Raw}B", data.Length, output.Length);
+                return output.ToArray();
+            }
+
+            _logger.LogWarning("[JellyShim] Image: Unknown upstream Content-Encoding: {Encoding}", contentEncoding);
+            return data;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[JellyShim] Image: Failed to decompress upstream (Content-Encoding: {Encoding})", contentEncoding);
+            return data;
+        }
     }
 }

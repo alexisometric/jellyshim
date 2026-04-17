@@ -5,7 +5,6 @@ using Jellyfin.Plugin.JellyShim.Transformation;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Builder;
 using Microsoft.Extensions.DependencyInjection;

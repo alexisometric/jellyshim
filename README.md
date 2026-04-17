@@ -301,7 +301,7 @@ The admin config page includes a live performance dashboard showing real-time st
 - **Per-category request counts** — Web assets, plugin assets, File Transformation assets, images
 - **304 Not Modified responses** — Requests avoided by ETag matching
 
-All counters are thread-safe (atomic operations) and persist for the Jellyfin process lifetime. Reset via the dashboard or the REST API.
+All counters are thread-safe (atomic `Interlocked` operations) and persist for the Jellyfin process lifetime. `GetSnapshot()` reads all counters once to produce a consistent snapshot (avoids TOCTOU issues like hit rate > 100%). Reset via the dashboard or the REST API.
 
 ---
 
@@ -331,6 +331,8 @@ Client Request
 │  → Check disk cache             │
 │  → If miss: capture response,   │
 │    resize + re-encode, cache     │
+│  → Upstream decompression        │
+│    safety net (br/gz/zstd)       │
 │  → Serve with ETag/304          │
 └──────────┬───────────────────────┘
            │
@@ -343,6 +345,8 @@ Client Request
 │  → Serve Brotli/Zstd/Gzip cache│
 │  → Plugin JS/CSS: capture,      │
 │    minify, compress, cache       │
+│  → Inflight deduplication        │
+│    (per-key SemaphoreSlim)       │
 │  → Add Cache-Control, ETag,     │
 │    Vary, CORP, security headers  │
 │  → Skip API endpoints (30+)     │
@@ -353,6 +357,15 @@ Client Request
 │  Jellyfin Default Pipeline       │  Static files, API, streaming...
 └──────────────────────────────────┘
 ```
+
+### Thread Safety
+
+- **Config caching** — Parsed config strings (plugin paths, preconnect origins) use `volatile CachedStringArray?` sealed records for atomic snapshot reads — no torn state under concurrent access
+- **FT pattern matching** — `FileTransformationMatcher` uses `volatile CachedRegexState?` for the same pattern; concurrent config changes cause benign duplicate regex recompilation, never crashes
+- **Inflight locks** — `ConcurrentDictionary<string, SemaphoreSlim>` prevents duplicate processing of the same uncached asset; idle locks are cleaned up in `finally` blocks to prevent unbounded growth
+- **Accept-Encoding** — `NegotiateEncoding` respects `q=0` per RFC 7231 §5.3.4 — encodings explicitly rejected by the client are skipped
+- **Upstream decompression** — Both middleware pipelines strip `Accept-Encoding` before calling upstream, and decompress (Brotli/Gzip/Zstd) if upstream still compresses despite the stripped header
+- **304 Not Modified** — All four 304 paths (web, FT, plugin, images) include `ETag`, `Vary`, and `Cache-Control` headers per RFC 7232 §4.1 for shared cache correctness
 
 ### Scheduled Tasks
 

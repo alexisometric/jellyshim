@@ -28,7 +28,7 @@ public class AssetProcessor
 {
     private static readonly HashSet<string> CompressibleExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".js", ".css", ".html", ".htm", ".json", ".svg", ".xml", ".txt", ".map", ".mjs"
+        ".js", ".css", ".json", ".svg", ".xml", ".txt", ".map", ".mjs"
     };
 
     private static readonly HashSet<string> JsExtensions = new(StringComparer.OrdinalIgnoreCase)
