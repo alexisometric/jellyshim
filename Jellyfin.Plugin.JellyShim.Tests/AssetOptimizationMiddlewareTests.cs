@@ -485,6 +485,43 @@ public class AssetOptimizationMiddlewareTests : IDisposable
     }
 
     [Fact]
+    public async Task InvokeAsync_ExtensionlessPluginUrl_JsIsCapturedAndCompressed()
+    {
+        var config = SetupPluginWithConfig(new PluginConfiguration
+        {
+            PluginAssetPaths = "/JellyfinEnhanced/",
+            EnableMinification = true,
+            EnableCompression = true,
+            EnableCacheHeaders = true
+        });
+
+        var jsCode = "function hello() { return 'world'; }";
+        var jsBytes = Encoding.UTF8.GetBytes(jsCode);
+
+        var middleware = CreateMiddleware(ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = "application/javascript";
+            ctx.Response.Body.Write(jsBytes);
+            return Task.CompletedTask;
+        });
+
+        var context = CreateHttpContext("GET", "/JellyfinEnhanced/script");
+        context.Request.Headers.AcceptEncoding = "br, gzip, zstd";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+
+        // Extensionless JS plugin asset should be captured, minified, and cached
+        Assert.True(_cache.TryGetCachedFile("plugin/JellyfinEnhanced/script", "raw", out _));
+
+        // Should have compression encoding
+        Assert.False(string.IsNullOrEmpty(context.Response.Headers.ContentEncoding));
+        Assert.Equal("Accept-Encoding", context.Response.Headers.Vary);
+    }
+
+    [Fact]
     public async Task InvokeAsync_ExtensionlessPluginUrl_JsonApiNotCached()
     {
         var config = SetupPluginWithConfig(new PluginConfiguration

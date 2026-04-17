@@ -253,7 +253,9 @@ public class AssetOptimizationMiddleware
         }
 
         // Non-compressible, non-font pass-through with cache + CORP
-        if (!CompressibleExtensions.Contains(ext))
+        // Allow extensionless plugin assets through — they reach the plugin capture
+        // code below which detects Content-Type from the upstream response.
+        if (!CompressibleExtensions.Contains(ext) && !(isPluginAsset && string.IsNullOrEmpty(ext)))
         {
             SetResponseHeaders(context, config, () =>
             {
@@ -669,13 +671,10 @@ public class AssetOptimizationMiddleware
                 {
                     effectiveExt = ".css";
                 }
-                else if (responseContentType.Contains("json", StringComparison.OrdinalIgnoreCase))
-                {
-                    effectiveExt = ".json";
-                }
                 else
                 {
-                    // Not JS/CSS/JSON — forward the response unmodified
+                    // JSON and other types from extensionless URLs are likely dynamic
+                    // API endpoints — forward unmodified, never cache.
                     captureStream.Position = 0;
                     context.Response.Body = originalBody;
                     await captureStream.CopyToAsync(originalBody, context.RequestAborted).ConfigureAwait(false);
@@ -745,8 +744,7 @@ public class AssetOptimizationMiddleware
 
             if (config.EnableCacheHeaders)
             {
-                context.Response.Headers[HeaderNames.CacheControl] =
-                    $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+                SetPluginCacheControl(context, config);
             }
 
             if (config.EnableCrossOriginResourcePolicy)
@@ -981,8 +979,7 @@ public class AssetOptimizationMiddleware
             response.Headers.Vary = "Accept-Encoding";
             if (config.EnableCacheHeaders)
             {
-                response.Headers[HeaderNames.CacheControl] =
-                    $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+                SetPluginCacheControl(context, config);
             }
             _stats.RecordNotModified();
             return;
@@ -1005,8 +1002,7 @@ public class AssetOptimizationMiddleware
 
         if (config.EnableCacheHeaders)
         {
-            response.Headers[HeaderNames.CacheControl] =
-                $"public, max-age={config.PluginAssetMaxAge}, stale-while-revalidate=3600";
+            SetPluginCacheControl(context, config);
         }
 
         if (config.EnableJsModulepreloadHeaders &&
@@ -1316,6 +1312,20 @@ public class AssetOptimizationMiddleware
             response.Headers[HeaderNames.CacheControl] =
                 $"public, max-age={config.StaticAssetMaxAge}, stale-while-revalidate={config.StaleWhileRevalidate}";
         }
+    }
+
+    /// <summary>
+    /// Sets Cache-Control for plugin assets. Versioned URLs (?v=) get the hashed asset max-age
+    /// (long TTL) since the version parameter provides cache busting. Unversioned URLs get the
+    /// shorter PluginAssetMaxAge.
+    /// </summary>
+    private static void SetPluginCacheControl(HttpContext context, PluginConfiguration config)
+    {
+        var hasVersion = context.Request.Query.ContainsKey("v") || context.Request.Query.ContainsKey("c");
+        var maxAge = hasVersion ? config.HashedAssetMaxAge : config.PluginAssetMaxAge;
+        var swr = hasVersion ? config.StaleWhileRevalidate : 3600;
+        context.Response.Headers[HeaderNames.CacheControl] =
+            $"public, max-age={maxAge}, stale-while-revalidate={swr}";
     }
 
     /// <summary>

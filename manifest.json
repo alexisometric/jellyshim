@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/alexisometric/jellyshim/main/images/thumb.png",
     "versions": [
       {
+        "version": "1.2.1.0",
+        "changelog": "Fix extensionless plugin URLs (e.g. /JellyfinEnhanced/script) not being compressed or minified — CompressibleExtensions.Contains('') short-circuited before capture code. Only JS/CSS content types captured for extensionless URLs (JSON passes through unmodified). Versioned plugin assets (?v=) now get 30-day cache TTL instead of 1-day. 207 tests.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.2.1/jellyshim-v1.2.1.zip",
+        "checksum": "945582d9ff164354a17340bd55356265",
+        "timestamp": "2026-04-17T14:00:00Z"
+      },
+      {
         "version": "1.2.0.0",
         "changelog": "Audit round 2: RFC 7232 §4.1 compliant 304 responses (ETag + Vary + Cache-Control on all 4 paths), fix _requestCount TOCTOU race in Interlocked.Increment, exclude HTML from AssetProcessor pre-optimization (FT compatibility), fix Plugin.Description and manifest descriptions, fix localization label consistency for FT bypass patterns, add zstd/ to DiskCacheManager XML docs. 206 tests.",
         "targetAbi": "10.11.0.0",
