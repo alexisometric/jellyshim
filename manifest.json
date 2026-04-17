@@ -13,7 +13,7 @@
         "changelog": "Fix extensionless plugin URLs (e.g. /JellyfinEnhanced/script) not being compressed or minified — CompressibleExtensions.Contains('') short-circuited before capture code. Only JS/CSS content types captured for extensionless URLs (JSON passes through unmodified). Versioned plugin assets (?v=) now get 30-day cache TTL instead of 1-day. 207 tests.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/alexisometric/jellyshim/releases/download/v1.2.1/jellyshim-v1.2.1.zip",
-        "checksum": "945582d9ff164354a17340bd55356265",
+        "checksum": "8f4e7dd0ee6b10873a00096fb763cd16",
         "timestamp": "2026-04-17T14:00:00Z"
       },
       {
